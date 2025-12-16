@@ -68,8 +68,7 @@ if uploaded_file and api_key:
         genai.configure(api_key=api_key)
         
         # AQUÍ ESTÁ EL MODELO (Usamos 1.5 Flash)
-        model = genai.GenerativeModel('gemini-1.5-flash') 
-
+       model = genai.GenerativeModel('gemini-pro')
         if "pdf_text" not in st.session_state or st.session_state.get("file_name") != uploaded_file.name:
             with st.spinner("Procesando PDF..."):
                 text = get_pdf_text(uploaded_file)
