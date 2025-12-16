@@ -1,7 +1,6 @@
 import streamlit as st
 import google.generativeai as genai
 import PyPDF2
-import os
 
 # --- CONFIGURACIÓN DE LA PÁGINA ---
 st.set_page_config(
@@ -67,8 +66,9 @@ if uploaded_file and api_key:
     try:
         genai.configure(api_key=api_key)
         
-        # AQUÍ ESTÁ EL MODELO (Usamos 1.5 Flash)
-       model = genai.GenerativeModel('gemini-pro')
+        # MODELO CORREGIDO Y ESPACIOS ALINEADOS
+        model = genai.GenerativeModel('gemini-pro') 
+
         if "pdf_text" not in st.session_state or st.session_state.get("file_name") != uploaded_file.name:
             with st.spinner("Procesando PDF..."):
                 text = get_pdf_text(uploaded_file)
@@ -83,14 +83,16 @@ if uploaded_file and api_key:
         with tab1:
             if st.button("Analizar Guía"):
                 with st.spinner("Generando análisis clínico..."):
-                    # Llamada directa sin stream para evitar errores de conexión
-                    response = model.generate_content(PROMPT_ANALISIS + "\n\nDOCUMENTO:\n" + st.session_state.pdf_text)
+                    # Prompt + Texto del PDF
+                    full_prompt = PROMPT_ANALISIS + "\n\nDOCUMENTO:\n" + st.session_state.pdf_text
+                    response = model.generate_content(full_prompt)
                     st.markdown(response.text)
 
         with tab2:
             if st.button("Crear Infografía"):
                 with st.spinner("Diseñando estructura visual..."):
-                    response = model.generate_content(PROMPT_INFOGRAFIA + "\n\nDOCUMENTO:\n" + st.session_state.pdf_text)
+                    full_prompt = PROMPT_INFOGRAFIA + "\n\nDOCUMENTO:\n" + st.session_state.pdf_text
+                    response = model.generate_content(full_prompt)
                     st.markdown(response.text)
 
         with tab3:
@@ -102,14 +104,14 @@ if uploaded_file and api_key:
                 st.session_state.chat_history.append({"role": "user", "content": prompt})
                 
                 # Chat logic
-                full_prompt = f"Contexto: {st.session_state.pdf_text}\n\nPregunta: {prompt}\nResponde solo basándote en el contexto."
-                resp = model.generate_content(full_prompt)
+                chat_prompt = f"Contexto: {st.session_state.pdf_text}\n\nPregunta: {prompt}\nResponde solo basándote en el contexto."
+                resp = model.generate_content(chat_prompt)
                 
                 st.chat_message("assistant").write(resp.text)
                 st.session_state.chat_history.append({"role": "assistant", "content": resp.text})
 
     except Exception as e:
-        st.error(f"Error: {e}")
+        st.error(f"Error técnico: {e}")
 
 elif not api_key:
     st.warning("Introduce tu API Key en la barra lateral.")
