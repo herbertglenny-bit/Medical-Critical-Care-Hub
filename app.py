@@ -2,9 +2,9 @@ import streamlit as st
 import google.generativeai as genai
 import PyPDF2
 
-# --- CONFIGURACIÓN DE LA PÁGINA ---
+# --- CONFIGURACIÓN DE LA PÁGINA (NOMBRE EN PESTAÑA NAVEGADOR) ---
 st.set_page_config(
-    page_title="Medical Critical Hub",
+    page_title="Medical Critical Care Hub",
     page_icon="🏥",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -70,7 +70,8 @@ def get_pdf_text(pdf_file):
 # --- INTERFAZ ---
 with st.sidebar:
     st.image("https://cdn-icons-png.flaticon.com/512/3063/3063176.png", width=80)
-    st.title("Medical Critical Hub")
+    # NOMBRE ACTUALIZADO EN BARRA LATERAL
+    st.title("Medical Critical Care Hub")
     st.markdown("**Dr. Herbert Baquerizo Vargas**")
     st.caption("Althaia, Xarxa Assistencial Universitària de Manresa")
     st.divider()
@@ -92,12 +93,11 @@ except:
 if uploaded_file and api_key:
     genai.configure(api_key=api_key)
     
-    # --- AUTO-SELECCIÓN DE MODELO (La pieza clave) ---
-    # Buscamos el modelo que funcionó antes automáticamente
+    # --- AUTO-SELECCIÓN DE MODELO (Mantenemos la lógica que funcionó) ---
     if "target_model" not in st.session_state:
         try:
             available = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
-            # Preferencia: Flash > Pro > Cualquiera
+            # Prioridad: Flash > Pro > Cualquiera
             if any('flash' in m for m in available):
                 st.session_state.target_model = next(m for m in available if 'flash' in m)
             elif any('pro' in m for m in available):
@@ -107,15 +107,14 @@ if uploaded_file and api_key:
             else:
                 st.error("No se encontraron modelos disponibles.")
         except:
-            # Fallback de emergencia si el listado falla
             st.session_state.target_model = 'models/gemini-pro'
 
-    # Configuramos el modelo encontrado
+    # Configuramos el modelo
     model = genai.GenerativeModel(st.session_state.target_model)
     
     # Procesar PDF
     if "pdf_text" not in st.session_state or st.session_state.get("file_name") != uploaded_file.name:
-        with st.spinner(f"Leyendo documento con {st.session_state.target_model}..."):
+        with st.spinner(f"Procesando documento con {st.session_state.target_model}..."):
             text = get_pdf_text(uploaded_file)
             st.session_state.pdf_text = text
             st.session_state.file_name = uploaded_file.name
@@ -123,7 +122,7 @@ if uploaded_file and api_key:
     
     st.success(f"Guía cargada: {uploaded_file.name}")
     
-    # --- PESTAÑAS DE FUNCIONALIDAD ---
+    # --- PESTAÑAS ---
     tab1, tab2, tab3 = st.tabs(["📋 Análisis Clínico", "🎨 Infografía", "💬 Chat con la Guía"])
 
     # TAB 1: ANÁLISIS
@@ -161,7 +160,6 @@ if uploaded_file and api_key:
             st.session_state.chat_history.append({"role": "user", "content": prompt})
             
             try:
-                # Prompt RAG simple
                 chat_prompt = f"Actúa como experto médico. Contexto de la guía:\n{st.session_state.pdf_text}\n\nPregunta: {prompt}\nRespuesta:"
                 resp = model.generate_content(chat_prompt)
                 st.chat_message("assistant").write(resp.text)
