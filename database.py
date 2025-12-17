@@ -1,41 +1,48 @@
 import os
+import google.generativeai as genai
+from pypdf import PdfReader
 
 # ==========================================
-# 1. PEGA TU CLAVE AQUÍ (SIN BORRAR LAS COMILLAS)
+# 1. TU CLAVE AQUÍ
 # ==========================================
-GEMINI_API_KEY = "AIzaSyBy9wai4pEyFCGQUiALSCzqYMOSj2foTjM" 
+GEMINI_API_KEY = "AIzaSyBy9wai4pEyFCGQUiALSCzqYMOSj2foTjM"
 
 CARPETA_PDFS = "." 
 
 # ==========================================
-# 2. DIAGNÓSTICO DE CONEXIÓN
+# 2. CONEXIÓN INTELIGENTE (AUTO-SELECTOR)
 # ==========================================
 ESTADO_CEREBRO = "Iniciando..."
-ERROR_DETALLE = ""
+model = None
 
 try:
-    import google.generativeai as genai
-    from pypdf import PdfReader
-    
-    # Verificamos si la clave tiene formato correcto
     if "AIza" not in GEMINI_API_KEY:
         ESTADO_CEREBRO = "❌ ERROR DE CLAVE"
-        ERROR_DETALLE = "La clave no empieza por 'AIza'. Revisa que la has pegado bien."
     else:
         genai.configure(api_key=GEMINI_API_KEY)
         
-        # --- CAMBIO IMPORTANTE AQUÍ ---
-        # Usamos 'gemini-pro' que es el modelo más compatible actualmente.
-        model = genai.GenerativeModel('gemini-pro')
+        # --- LA MAGIA: BUSCAMOS UN MODELO QUE FUNCIONE ---
+        modelo_elegido = None
+        try:
+            # Preguntamos a Google qué modelos tiene
+            for m in genai.list_models():
+                if 'generateContent' in m.supported_generation_methods:
+                    if 'gemini' in m.name:
+                        modelo_elegido = m.name
+                        break # Encontramos uno, nos quedamos con este
+        except:
+            pass
+
+        # Si no encontramos ninguno en la lista, probamos el más nuevo por defecto
+        if not modelo_elegido:
+            modelo_elegido = 'gemini-1.5-flash'
+            
+        print(f"Modelo seleccionado: {modelo_elegido}")
+        model = genai.GenerativeModel(modelo_elegido)
         ESTADO_CEREBRO = "✅ CONECTADO"
 
-except ImportError:
-    ESTADO_CEREBRO = "❌ ERROR DE INSTALACIÓN"
-    ERROR_DETALLE = "Faltan librerías. Revisa requirements.txt."
 except Exception as e:
-    ESTADO_CEREBRO = "❌ ERROR DESCONOCIDO"
-    ERROR_DETALLE = str(e)
-
+    ESTADO_CEREBRO = f"❌ ERROR: {str(e)}"
 
 # ==========================================
 # 3. MOTOR DE ANÁLISIS
@@ -45,25 +52,24 @@ def analizar_con_ia(texto, archivo):
     if "ERROR" in ESTADO_CEREBRO:
         return None 
     
-    # Prompt mejorado para el médico
     prompt = f"""
-    Actúa como un médico intensivista experto.
-    Analiza el siguiente texto extraído de un documento PDF ({archivo}).
+    Eres un médico intensivista. Resume este PDF ({archivo}) en Markdown.
     
-    Genera un resumen en formato Markdown con estos 3 apartados:
-    1. **Título y Año** (si se detecta).
-    2. **Resumen Ejecutivo**: De qué trata el documento en 2 líneas.
-    3. **Puntos Clave**: 3 o 4 bullets points con lo más importante.
+    Estructura:
+    1. **Título del Documento**
+    2. **Resumen Ejecutivo** (2 líneas)
+    3. **3 Puntos Clave** (Bullet points)
+    4. **Algoritmo Sugerido** (Si aplica, descríbelo paso a paso)
 
-    TEXTO DEL PDF:
-    {texto[:8000]} 
+    TEXTO:
+    {texto[:10000]} 
     """
     
     try:
         response = model.generate_content(prompt)
         return response.text
     except Exception as e:
-        return f"Error al hablar con Google: {e}"
+        return f"Error generando contenido: {e}"
 
 def generar_biblioteca_automatica():
     biblioteca = []
@@ -80,11 +86,10 @@ def generar_biblioteca_automatica():
             with open(ruta, "rb") as f:
                 contenido_bytes = f.read()
             
-            # Extraer texto para la IA
+            # Extraer texto
             reader = PdfReader(ruta)
             texto_pdf = ""
-            # Leemos primeras 4 páginas para no saturar
-            for page in reader.pages[:4]: 
+            for page in reader.pages[:5]: 
                 texto_pdf += page.extract_text() or ""
         except:
             contenido_bytes = None
@@ -92,23 +97,14 @@ def generar_biblioteca_automatica():
 
         # GENERAR CONTENIDO
         if "CONECTADO" in ESTADO_CEREBRO:
-            # Preguntamos a la IA
             analisis_texto = analizar_con_ia(texto_pdf, archivo)
-            infografia_texto = "✅ Procesado con IA (Gemini Pro)"
-            resumen_texto = "Análisis generado automáticamente."
+            infografia_texto = "✅ IA Activa"
+            resumen_texto = "Análisis generado por IA."
         else:
-            # Si falla, mostramos por qué
-            analisis_texto = f"""
-# ⚠️ ERROR DE CONEXIÓN
-No se ha podido generar el análisis.
+            analisis_texto = f"# Error\n{ESTADO_CEREBRO}"
+            infografia_texto = "❌ Offline"
+            resumen_texto = "Error de conexión."
 
-**Causa:** {ESTADO_CEREBRO}
-**Detalle:** {ERROR_DETALLE}
-"""
-            infografia_texto = "❌ Sin conexión"
-            resumen_texto = "Error de sistema."
-
-        # Guardar
         item = {
             "id": archivo,
             "titulo": archivo.replace(".pdf", "").replace("_", " ").title(),
