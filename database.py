@@ -688,5 +688,4 @@ graph TD
 6.  **Microcirculación: El "Último Kilómetro":** Cuando sea factible, la evaluación de la microcirculación puede ofrecer información vital sobre la adecuación de la perfusión tisular que no es visible a través de los parámetros macrohemodinámicos.""",
         "pdf_bytes": None 
     },
-
 ]
