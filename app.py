@@ -56,17 +56,29 @@ with st.sidebar:
     st.markdown("**Dr. Herbert Baquerizo Vargas**")
     st.caption("Althaia, Xarxa Assistencial Universitària de Manresa")
     st.divider()
-    api_key = st.text_input("Google API Key", type="password")
+    
+    # YA NO PEDIMOS LA CLAVE. Solo mostramos estado.
+    if "GOOGLE_API_KEY" in st.secrets:
+        st.success("✅ Licencia Activada")
+    else:
+        st.error("⚠️ Falta configurar el 'Secret' con la API Key.")
+        
     st.divider()
     uploaded_file = st.file_uploader("Subir Guía (PDF)", type=['pdf'])
 
 # --- LÓGICA PRINCIPAL ---
+# Intentamos recuperar la clave de la caja fuerte (Secrets)
+try:
+    api_key = st.secrets["GOOGLE_API_KEY"]
+except:
+    st.warning("Por favor, configura la 'GOOGLE_API_KEY' en los Settings de Streamlit Cloud.")
+    api_key = None
+
 if uploaded_file and api_key:
     try:
-        # Configuración
         genai.configure(api_key=api_key)
         
-        # MODELO: Usamos Flash por su capacidad de contexto largo
+        # Modelo 1.5 Flash (Mejor para documentos largos)
         model = genai.GenerativeModel('gemini-1.5-flash') 
 
         if "pdf_text" not in st.session_state or st.session_state.get("file_name") != uploaded_file.name:
@@ -78,7 +90,6 @@ if uploaded_file and api_key:
         
         st.success(f"Guía cargada: {uploaded_file.name}")
         
-        # Pestañas
         tab1, tab2, tab3 = st.tabs(["📋 Análisis", "🎨 Infografía", "💬 Chat"])
 
         with tab1:
@@ -111,6 +122,3 @@ if uploaded_file and api_key:
 
     except Exception as e:
         st.error(f"Error detectado: {e}")
-
-elif not api_key:
-    st.warning("Introduce tu API Key en la barra lateral.")
