@@ -1,13 +1,13 @@
 import streamlit as st
 import google.generativeai as genai
 import PyPDF2
-import base64
+from streamlit_pdf_viewer import pdf_viewer # LIBRERÍA NUEVA
 
 # --- CONFIGURACIÓN DE LA PÁGINA ---
 st.set_page_config(
     page_title="Medical Critical Care Hub",
     page_icon="🏥",
-    layout="wide", # IMPRESCINDIBLE para pantalla dividida
+    layout="wide",
     initial_sidebar_state="expanded"
 )
 
@@ -68,14 +68,6 @@ def get_pdf_text(pdf_file):
     except Exception as e:
         return None
 
-def display_pdf(uploaded_file):
-    """Muestra el PDF en un iframe"""
-    bytes_data = uploaded_file.getvalue()
-    base64_pdf = base64.b64encode(bytes_data).decode('utf-8')
-    # Altura ajustada a 900px para que ocupe bien la pantalla
-    pdf_display = f'<iframe src="data:application/pdf;base64,{base64_pdf}" width="100%" height="900px" type="application/pdf"></iframe>'
-    st.markdown(pdf_display, unsafe_allow_html=True)
-
 # --- INTERFAZ ---
 with st.sidebar:
     st.image("https://cdn-icons-png.flaticon.com/512/3063/3063176.png", width=80)
@@ -128,13 +120,11 @@ if uploaded_file and api_key:
             st.session_state.chat_history = []
     
     # --- LAYOUT DE PANTALLA DIVIDIDA ---
-    # Creamos dos columnas iguales
     col_izq, col_der = st.columns(2)
     
-    # --- COLUMNA IZQUIERDA: EL PDF ---
+    # --- COLUMNA IZQUIERDA: VISOR PDF SEGURO ---
     with col_izq:
         st.subheader("📄 Documento Original")
-        # Botón de descarga
         st.download_button(
             label="💾 Descargar PDF",
             data=uploaded_file.getvalue(),
@@ -142,17 +132,18 @@ if uploaded_file and api_key:
             mime="application/pdf"
         )
         st.divider()
-        # Visor
-        display_pdf(uploaded_file)
         
-    # --- COLUMNA DERECHA: LA IA ---
+        # USAMOS LA NUEVA LIBRERÍA AQUÍ
+        # width=700 asegura que se vea grande
+        binary_data = uploaded_file.getvalue()
+        pdf_viewer(input=binary_data, width=700)
+        
+    # --- COLUMNA DERECHA: IA ---
     with col_der:
         st.subheader("🤖 Análisis Inteligente")
         
-        # Las 3 Pestañas de herramientas
         tab1, tab2, tab3 = st.tabs(["📋 Análisis", "🎨 Infografía", "💬 Chat"])
 
-        # TAB 1: ANÁLISIS
         with tab1:
             st.info("Genera un resumen clínico estructurado.")
             if st.button("Generar Informe Intensivista", key="btn_analisis"):
@@ -164,7 +155,6 @@ if uploaded_file and api_key:
                     except Exception as e:
                         st.error(f"Error: {e}")
 
-        # TAB 2: INFOGRAFÍA
         with tab2:
             st.info("Extrae los datos clave para diseño visual.")
             if st.button("Generar Estructura Visual", key="btn_info"):
@@ -176,16 +166,13 @@ if uploaded_file and api_key:
                     except Exception as e:
                         st.error(f"Error: {e}")
 
-        # TAB 3: CHATBOT
         with tab3:
             st.info("Pregunta dudas específicas al documento.")
-            # Contenedor para el historial (para que no se mezcle con el input)
             chat_container = st.container()
             with chat_container:
                 for msg in st.session_state.chat_history:
                     st.chat_message(msg["role"]).write(msg["content"])
             
-            # Input de chat
             if prompt := st.chat_input("Pregunta a la guía..."):
                 st.chat_message("user").write(prompt)
                 st.session_state.chat_history.append({"role": "user", "content": prompt})
