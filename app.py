@@ -19,7 +19,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- CSS ---
+# --- CSS: ESTILOS ---
 st.markdown("""
     <style>
         .block-container {
@@ -42,7 +42,6 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # --- PROMPTS MAESTROS ---
-# 1. Prompt para extraer metadatos automáticamente al subir el archivo
 PROMPT_METADATA = """
 Actúa como bibliotecario médico. Analiza la primera página de este documento y extrae la siguiente información en formato JSON estricto:
 {
@@ -55,7 +54,6 @@ Actúa como bibliotecario médico. Analiza la primera página de este documento 
 Si no encuentras algún dato, déjalo en blanco.
 """
 
-# 2. Prompts de Análisis Clínico
 PROMPT_ANALISIS = """
 # ROL: Médico Intensivista Senior.
 # OBJETIVO: Analizar GPC para sesión clínica.
@@ -83,7 +81,6 @@ def get_pdf_text(pdf_file, pages=None):
     try:
         pdf_reader = PyPDF2.PdfReader(pdf_file)
         text = ""
-        # Si pages es None, lee todo. Si es un número, lee solo esas páginas (para metadatos)
         limit = len(pdf_reader.pages) if pages is None else min(pages, len(pdf_reader.pages))
         for i in range(limit):
             text += pdf_reader.pages[i].extract_text() or ""
@@ -95,7 +92,6 @@ if "view_mode" not in st.session_state:
     st.session_state.view_mode = "home"
 if "selected_guide" not in st.session_state:
     st.session_state.selected_guide = None
-# Estado para el formulario de Admin
 if "admin_form" not in st.session_state:
     st.session_state.admin_form = {}
 
@@ -115,7 +111,6 @@ with st.sidebar:
     
     with st.expander("🔒 Área de Administrador"):
         admin_pass = st.text_input("Contraseña", type="password")
-        # Contraseña por defecto admin123 si no está en secrets
         correct_pass = st.secrets.get("ADMIN_PASSWORD", "admin123")
         if admin_pass == correct_pass:
             if st.button("⚙️ Panel de Carga", use_container_width=True):
@@ -124,9 +119,7 @@ with st.sidebar:
         elif admin_pass:
             st.error("Acceso denegado")
 
-# ==========================================
-# LÓGICA DE API KEY
-# ==========================================
+# --- LÓGICA API KEY ---
 api_key = st.secrets.get("GOOGLE_API_KEY")
 if api_key:
     genai.configure(api_key=api_key)
@@ -146,10 +139,9 @@ if st.session_state.view_mode == "home":
     st.divider()
     
     if not library:
-        st.info("La biblioteca está vacía.")
+        st.info("La biblioteca está vacía. Accede al panel Admin para publicar la primera guía.")
     
     for guide in library:
-        # Filtros
         match_search = search_query.lower() in guide['titulo'].lower() or search_query.lower() in guide['resumen'].lower()
         match_esp = especialidad_filter == "Todas" or especialidad_filter == guide['especialidad']
         
@@ -169,7 +161,7 @@ if st.session_state.view_mode == "home":
                     st.rerun()
 
 # ==========================================
-# VISTA 2: DETALLE (VISUALIZACIÓN)
+# VISTA 2: DETALLE
 # ==========================================
 elif st.session_state.view_mode == "detail" and st.session_state.selected_guide:
     guide = st.session_state.selected_guide
@@ -186,7 +178,7 @@ elif st.session_state.view_mode == "detail" and st.session_state.selected_guide:
         c1, c2, c3 = st.columns([2, 3, 2])
         with c1: st.markdown("#### 📄 Original")
         with c2: zoom_level = st.slider("🔍 Zoom", 600, 2000, 800, label_visibility="collapsed")
-        with c3: st.write("") # Placeholder
+        with c3: st.write("")
         
         with st.container(height=850, border=True):
             if "pdf_bytes" in guide and guide["pdf_bytes"]:
@@ -213,27 +205,86 @@ elif st.session_state.view_mode == "detail" and st.session_state.selected_guide:
                     if api_key:
                         model = genai.GenerativeModel('gemini-pro')
                         ctx = guide['analisis'] + "\n" + guide['infografia']
-                        resp = model.generate_content(f"Contexto médico:\n{ctx}\n\nPregunta: {prompt}")
-                        st.chat_message("assistant").write(resp.text)
-                        st.session_state.chat_history.append({"role": "assistant", "content": resp.text})
+                        try:
+                            resp = model.generate_content(f"Contexto médico:\n{ctx}\n\nPregunta: {prompt}")
+                            st.chat_message("assistant").write(resp.text)
+                            st.session_state.chat_history.append({"role": "assistant", "content": resp.text})
+                        except Exception as e:
+                            st.error(f"Error: {e}")
 
 # ==========================================
-# VISTA 3: ADMIN (AUTO-RELLENADO INTELIGENTE)
+# VISTA 3: ADMIN
 # ==========================================
 elif st.session_state.view_mode == "admin":
     st.title("⚙️ Panel de Publicación Inteligente")
     
     uploaded_file = st.file_uploader("1. Sube la Guía (PDF)", type=['pdf'])
     
-    # LÓGICA DE AUTO-EXTRACCIÓN
     if uploaded_file and api_key:
-        # Detectamos si acabamos de cargar un archivo nuevo para leer sus metadatos
         if "last_uploaded" not in st.session_state or st.session_state.last_uploaded != uploaded_file.name:
-            with st.spinner("🤖 Leyendo PDF y extrayendo metadatos automáticamente..."):
+            with st.spinner("🤖 Extrayendo metadatos..."):
                 try:
-                    # 1. Leer solo las primeras 3 páginas para metadatos
                     text_preview = get_pdf_text(uploaded_file, pages=3)
-                    
-                    # 2. Consultar a Gemini
                     model = genai.GenerativeModel('gemini-pro')
-                    response = model.generate_content(PRO
+                    # Aseguramos cierre de paréntesis aquí
+                    response = model.generate_content(PROMPT_METADATA + f"\n\nTEXTO:\n{text_preview}")
+                    
+                    json_str = response.text.replace("```json", "").replace("```", "").strip()
+                    metadata = json.loads(json_str)
+                    st.session_state.admin_form = metadata
+                    st.session_state.last_uploaded = uploaded_file.name
+                    st.toast("¡Datos extraídos!", icon="✨")
+                except Exception as e:
+                    st.error(f"Error metadatos: {e}")
+
+    st.subheader("2. Revisa y Completa")
+    defaults = st.session_state.get("admin_form", {})
+    
+    c1, c2, c3 = st.columns(3)
+    meta_titulo = c1.text_input("Título Guía", value=defaults.get("titulo", ""))
+    meta_sociedad = c2.text_input("Sociedad", value=defaults.get("sociedad", ""))
+    meta_anio = c3.text_input("Año", value=defaults.get("anio", ""))
+    
+    c4, c5 = st.columns([1, 2])
+    meta_esp = c4.text_input("Especialidad", value=defaults.get("especialidad", ""))
+    meta_url = c5.text_input("URL Original (Opcional)")
+    
+    meta_resumen = st.text_area("Resumen (Castellano)", value=defaults.get("resumen", ""), height=100)
+
+    st.divider()
+
+    if uploaded_file and st.button("3. 🚀 GENERAR CÓDIGO"):
+        with st.spinner("Analizando documento completo..."):
+            try:
+                # Buscamos modelo disponible
+                available = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
+                target_model = next((m for m in available if 'flash' in m), 'models/gemini-pro')
+                model_flash = genai.GenerativeModel(target_model)
+                
+                full_text = get_pdf_text(uploaded_file)
+                
+                # Generamos contenido con paréntesis seguros
+                res_analisis = model_flash.generate_content(PROMPT_ANALISIS + "\nDOC:\n" + full_text).text
+                res_info = model_flash.generate_content(PROMPT_INFOGRAFIA + "\nDOC:\n" + full_text).text
+                
+                safe_id = meta_titulo.replace(' ', '_').lower()[:20]
+                
+                code_snippet = f"""
+    {{
+        "id": "{safe_id}",
+        "titulo": "{meta_titulo}",
+        "sociedad": "{meta_sociedad}",
+        "especialidad": "{meta_esp}",
+        "anio": "{meta_anio}",
+        "resumen": "{meta_resumen}",
+        "url_fuente": "{meta_url}",
+        "analisis": \"\"\"{res_analisis}\"\"\",
+        "infografia": \"\"\"{res_info}\"\"\",
+        "pdf_bytes": None 
+    }},
+                """
+                st.success("¡Listo! Copia este bloque en database.py:")
+                st.code(code_snippet, language="python")
+                
+            except Exception as e:
+                st.error(f"Error en generación: {e}")
