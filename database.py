@@ -1,73 +1,143 @@
 import os
+import google.generativeai as genai
+from pypdf import PdfReader
 
-# CONFIGURACIÓN
-# Carpeta donde buscar los PDFs. Pon "." para buscar en la raíz.
-CARPETA_PDFS = "." 
+# ==========================================
+# 1. CONFIGURACIÓN DE LA IA (GEMINI)
+# ==========================================
+# Para que esto funcione de verdad, necesitas una API KEY de Google.
+# Consíguela gratis aquí: https://aistudio.google.com/app/apikey
+# Pégala dentro de las comillas de abajo.
+
+GEMINI_API_KEY = "AIzaSyBy9wai4pEyFCGQUiALSCzqYMOSj2foTjM" 
+
+CARPETA_PDFS = "." # Busca en la carpeta raíz
+
+# Configuramos Gemini si hay clave
+TIENE_CEREBRO = False
+if GEMINI_API_KEY and GEMINI_API_KEY != "AIzaSyBy9wai4pEyFCGQUiALSCzqYMOSj2foTjM":
+    try:
+        genai.configure(api_key=GEMINI_API_KEY)
+        model = genai.GenerativeModel('gemini-1.5-flash') # Modelo rápido y barato
+        TIENE_CEREBRO = True
+    except:
+        print("Error configurando la API de Gemini.")
+
+# ==========================================
+# 2. FUNCIONES DE LECTURA Y ANÁLISIS
+# ==========================================
+
+def leer_texto_pdf(ruta_pdf):
+    """Extrae el texto de las primeras páginas del PDF."""
+    texto_completo = ""
+    try:
+        reader = PdfReader(ruta_pdf)
+        # Leemos solo las primeras 10 páginas para no saturar y ser rápidos
+        paginas_a_leer = min(len(reader.pages), 10) 
+        for i in range(paginas_a_leer):
+            texto = reader.pages[i].extract_text()
+            if texto:
+                texto_completo += texto + "\n"
+    except Exception as e:
+        print(f"Error leyendo PDF: {e}")
+    return texto_completo
+
+def analizar_con_ia(texto_pdf, nombre_archivo):
+    """Envía el texto a Gemini y pide el análisis."""
+    if not TIENE_CEREBRO:
+        return None, None # Sin clave, no hay análisis real
+
+    prompt = f"""
+    Actúa como un Médico Intensivista Senior. Analiza el siguiente texto extraído de una guía clínica ({nombre_archivo}).
+    
+    Genera dos salidas separadas:
+    1. 'ANALISIS': Un resumen estructurado en Markdown con: Título oficial, Año, Mensajes Clave y un Algoritmo explicativo en texto (lista numerada).
+    2. 'INFOGRAFIA': Un resumen visual muy breve tipo "Semáforo" (Verde/Rojo) con emojis.
+
+    Texto del PDF:
+    {texto_pdf[:15000]} # Limitamos caracteres por seguridad
+    """
+
+    try:
+        response = model.generate_content(prompt)
+        respuesta = response.text
+        
+        # Un pequeño truco para separar el texto si Gemini lo devuelve todo junto
+        # (Esto es básico, en producción se refinaría)
+        analisis = respuesta
+        infografia = "Ver sección de puntos clave en el análisis."
+        
+        return analisis, infografia
+    except Exception as e:
+        print(f"Error conectando con Gemini: {e}")
+        return None, None
+
+# ==========================================
+# 3. MOTOR AUTOMÁTICO
+# ==========================================
 
 def generar_biblioteca_automatica():
     biblioteca = []
     
-    # 1. Verificar si hay archivos
     if not os.path.exists(CARPETA_PDFS):
         return []
 
-    # 2. Buscar todos los PDFs
     archivos = sorted([f for f in os.listdir(CARPETA_PDFS) if f.lower().endswith('.pdf')])
 
     for archivo in archivos:
-        # Título automático basado en el nombre del archivo
-        # Ejemplo: "guia_sepsis.pdf" -> "Guia Sepsis"
-        titulo_limpio = archivo.replace(".pdf", "").replace("_", " ").replace("-", " ").title()
-
-        # Intentar leer el archivo para que sea descargable
+        print(f"Procesando: {archivo}...")
+        
+        # 1. Leer el archivo físico para descarga
+        ruta_completa = os.path.join(CARPETA_PDFS, archivo)
         try:
-            with open(os.path.join(CARPETA_PDFS, archivo), "rb") as f:
+            with open(ruta_completa, "rb") as f:
                 contenido_bytes = f.read()
         except:
             contenido_bytes = None
 
-        # --- AQUÍ ES DONDE OCURRIRÍA LA MAGIA DE LA IA ---
-        # En un futuro, aquí llamaríamos a la API para que lea el texto.
-        # Por ahora, generamos una plantilla automática.
+        # 2. Extraer texto del PDF
+        texto_del_pdf = leer_texto_pdf(ruta_completa)
+
+        # 3. Preguntar a la IA (Si tenemos clave)
+        analisis_ia, info_ia = analizar_con_ia(texto_del_pdf, archivo)
+
+        # 4. Preparar los textos finales
+        titulo = archivo.replace(".pdf", "").replace("_", " ").title()
         
-        analisis_automatico = f"""
-# Análisis de: {titulo_limpio}
+        if analisis_ia:
+            # Si la IA respondió
+            resumen_final = "Análisis generado automáticamente por Gemini AI."
+            contenido_analisis = analisis_ia
+            contenido_info = info_ia
+        else:
+            # Si NO hay IA configurada
+            resumen_final = "Carga automática (IA no activa)."
+            contenido_analisis = f"""
+# Análisis Pendiente para {titulo}
+⚠️ **Falta la API Key de Gemini**
 
-## 📄 Resumen Automático
-El documento **"{titulo_limpio}"** ha sido cargado correctamente en el sistema. 
+Para que yo (el código) pueda leer y analizar este PDF automáticamente como hacía el chat, necesitas configurar tu `GEMINI_API_KEY` en el archivo `database.py`.
 
-## 🤖 Estado del Análisis
-El archivo está listo para ser procesado. Para obtener el resumen clínico detallado y los puntos clave, es necesario activar la conexión con el modelo de Inteligencia Artificial.
-
-## 🔗 Acciones
-* Puedes visualizar el PDF original pulsando en el botón de la izquierda.
-* El análisis de contenido se generará cuando el servicio de IA esté disponible.
+Mientras tanto, he cargado el archivo para que puedas abrirlo.
 """
+            contenido_info = "# Sin IA"
 
-        infografia_automatica = f"""
-# Info
-**Archivo:** {archivo}
-**Estado:** ✅ Cargado
-"""
-
-        # Crear el elemento para la web
+        # 5. Guardar en la lista
         item = {
             "id": archivo,
-            "titulo": titulo_limpio,
-            "sociedad": "Documento PDF",
-            "especialidad": "Medicina Intensiva",
+            "titulo": titulo,
+            "sociedad": "Auto-Detectada",
+            "especialidad": "UCI",
             "anio": "2024",
-            "resumen": f"Documento: {titulo_limpio}",
-            "url_fuente": "",     # Se queda vacío
-            "pdf_source": None,   # Se queda vacío
-            "pdf_bytes": contenido_bytes, # ¡IMPORTANTE! Aquí va el archivo real
-            "analisis": analisis_automatico,
-            "infografia": infografia_automatica
+            "resumen": resumen_final,
+            "url_fuente": "",
+            "pdf_source": None,
+            "pdf_bytes": contenido_bytes,
+            "analisis": contenido_analisis,
+            "infografia": contenido_info
         }
-        
         biblioteca.append(item)
 
     return biblioteca
 
-# Ejecutar
 library = generar_biblioteca_automatica()
