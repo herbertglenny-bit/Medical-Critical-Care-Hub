@@ -1,4 +1,5 @@
 streamlit
-pypdf
 google-generativeai>=0.7.2
+pypdf
+PyPDF2
 streamlit-pdf-viewer
