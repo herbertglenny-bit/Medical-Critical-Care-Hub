@@ -7,7 +7,7 @@ import streamlit as st
 # ==========================================
 # 1. TU CLAVE AQUÍ
 # ==========================================
-GEMINI_API_KEY = "AQUI_TU_CLAVE_AIzaSy..." 
+GEMINI_API_KEY = "AIzaSyBy9wai4pEyFCGQUiALSCzqYMOSj2foTjM" 
 
 CARPETA_PDFS = "." 
 
