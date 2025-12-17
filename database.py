@@ -1,92 +1,53 @@
 import os
-import google.generativeai as genai
-from pypdf import PdfReader
 
 # ==========================================
-# 1. CONFIGURACIÓN DE LA IA (GEMINI)
+# 1. PEGA TU CLAVE AQUÍ (SIN BORRAR LAS COMILLAS)
 # ==========================================
-# BORRA LO QUE HAYA ENTRE LAS COMILLAS Y PEGA TU CLAVE:
-GEMINI_API_KEY = "AIzaSyBy9wai4pEyFCGQUiALSCzqYMOSj2foTjM" 
+GEMINI_API_KEY = "AIzaSyBy9wai4pEyFCGQUiALSCzqYMOSj2foTjM"
 
 CARPETA_PDFS = "." 
 
-# --- ZONA DE DIAGNÓSTICO ---
-print(f"--- DIAGNÓSTICO DE CLAVE ---")
-print(f"Longitud de la clave detectada: {len(GEMINI_API_KEY)}")
-if GEMINI_API_KEY.startswith("TU_CLAVE"):
-    print("❌ ERROR: Sigues teniendo el texto de ejemplo.")
-elif " " in GEMINI_API_KEY:
-    print("❌ ERROR: Hay espacios en blanco dentro de las comillas.")
-else:
-    print("✅ La clave parece correcta (formato válido).")
-print(f"----------------------------")
+# ==========================================
+# 2. DIAGNÓSTICO DE ERRORES (CHIVATO)
+# ==========================================
+ESTADO_CEREBRO = "Iniciando..."
+ERROR_DETALLE = ""
 
-TIENE_CEREBRO = False
 try:
-    if len(GEMINI_API_KEY) > 30 and not " " in GEMINI_API_KEY: 
+    import google.generativeai as genai
+    from pypdf import PdfReader
+    
+    # Verificamos si la clave tiene formato correcto
+    if "AIza" not in GEMINI_API_KEY:
+        ESTADO_CEREBRO = "❌ ERROR DE CLAVE"
+        ERROR_DETALLE = "La clave no empieza por 'AIza'. Sigues teniendo el texto de ejemplo o la has copiado mal."
+    else:
         genai.configure(api_key=GEMINI_API_KEY)
         model = genai.GenerativeModel('gemini-1.5-flash')
-        TIENE_CEREBRO = True
-        print("🧠 CEREBRO ACTIVADO: Conexión lista.")
-    else:
-        print("🧠 CEREBRO APAGADO: La clave no cumple los requisitos.")
+        ESTADO_CEREBRO = "✅ CONECTADO"
+
+except ImportError:
+    ESTADO_CEREBRO = "❌ ERROR DE INSTALACIÓN"
+    ERROR_DETALLE = "El servidor no encuentra la librería 'google-generativeai'. Revisa tu archivo requirements.txt y reinicia la app."
 except Exception as e:
-    print(f"❌ Error técnico al conectar: {e}")
+    ESTADO_CEREBRO = "❌ ERROR DESCONOCIDO"
+    ERROR_DETALLE = str(e)
+
 
 # ==========================================
-# A PARTIR DE AQUÍ NO TOQUES NADA
-# ==========================================# ==========================================
-# 2. FUNCIONES DE LECTURA Y ANÁLISIS
+# 3. MOTOR DE ANÁLISIS
 # ==========================================
 
-def leer_texto_pdf(ruta_pdf):
-    """Extrae el texto de las primeras páginas del PDF."""
-    texto_completo = ""
-    try:
-        reader = PdfReader(ruta_pdf)
-        # Leemos solo las primeras 10 páginas para no saturar y ser rápidos
-        paginas_a_leer = min(len(reader.pages), 10) 
-        for i in range(paginas_a_leer):
-            texto = reader.pages[i].extract_text()
-            if texto:
-                texto_completo += texto + "\n"
-    except Exception as e:
-        print(f"Error leyendo PDF: {e}")
-    return texto_completo
-
-def analizar_con_ia(texto_pdf, nombre_archivo):
-    """Envía el texto a Gemini y pide el análisis."""
-    if not TIENE_CEREBRO:
-        return None, None # Sin clave, no hay análisis real
-
-    prompt = f"""
-    Actúa como un Médico Intensivista Senior. Analiza el siguiente texto extraído de una guía clínica ({nombre_archivo}).
+def analizar_con_ia(texto, archivo):
+    if "ERROR" in ESTADO_CEREBRO:
+        return None 
     
-    Genera dos salidas separadas:
-    1. 'ANALISIS': Un resumen estructurado en Markdown con: Título oficial, Año, Mensajes Clave y un Algoritmo explicativo en texto (lista numerada).
-    2. 'INFOGRAFIA': Un resumen visual muy breve tipo "Semáforo" (Verde/Rojo) con emojis.
-
-    Texto del PDF:
-    {texto_pdf[:15000]} # Limitamos caracteres por seguridad
-    """
-
+    prompt = f"Eres un experto médico. Resume este PDF ({archivo}) en 3 puntos clave: \n\n {texto[:5000]}"
     try:
         response = model.generate_content(prompt)
-        respuesta = response.text
-        
-        # Un pequeño truco para separar el texto si Gemini lo devuelve todo junto
-        # (Esto es básico, en producción se refinaría)
-        analisis = respuesta
-        infografia = "Ver sección de puntos clave en el análisis."
-        
-        return analisis, infografia
+        return response.text
     except Exception as e:
-        print(f"Error conectando con Gemini: {e}")
-        return None, None
-
-# ==========================================
-# 3. MOTOR AUTOMÁTICO
-# ==========================================
+        return f"Error al hablar con Google: {e}"
 
 def generar_biblioteca_automatica():
     biblioteca = []
@@ -97,56 +58,56 @@ def generar_biblioteca_automatica():
     archivos = sorted([f for f in os.listdir(CARPETA_PDFS) if f.lower().endswith('.pdf')])
 
     for archivo in archivos:
-        print(f"Procesando: {archivo}...")
-        
-        # 1. Leer el archivo físico para descarga
-        ruta_completa = os.path.join(CARPETA_PDFS, archivo)
+        # Leer PDF
         try:
-            with open(ruta_completa, "rb") as f:
+            ruta = os.path.join(CARPETA_PDFS, archivo)
+            with open(ruta, "rb") as f:
                 contenido_bytes = f.read()
+                
+            # Extraer texto básico para enviar a la IA
+            reader = PdfReader(ruta)
+            texto_pdf = ""
+            for page in reader.pages[:5]: # Solo primeras 5 pág para ir rápido
+                texto_pdf += page.extract_text() or ""
         except:
             contenido_bytes = None
+            texto_pdf = ""
 
-        # 2. Extraer texto del PDF
-        texto_del_pdf = leer_texto_pdf(ruta_completa)
-
-        # 3. Preguntar a la IA (Si tenemos clave)
-        analisis_ia, info_ia = analizar_con_ia(texto_del_pdf, archivo)
-
-        # 4. Preparar los textos finales
-        titulo = archivo.replace(".pdf", "").replace("_", " ").title()
-        
-        if analisis_ia:
-            # Si la IA respondió
-            resumen_final = "Análisis generado automáticamente por Gemini AI."
-            contenido_analisis = analisis_ia
-            contenido_info = info_ia
+        # GENERAR CONTENIDO
+        if "CONECTADO" in ESTADO_CEREBRO:
+            # Si todo va bien, preguntamos a la IA
+            analisis_texto = analizar_con_ia(texto_pdf, archivo)
+            infografia_texto = f"✅ IA Activa. Procesado con éxito."
+            resumen_texto = "Análisis generado por Inteligencia Artificial."
         else:
-            # Si NO hay IA configurada
-            resumen_final = "Carga automática (IA no activa)."
-            contenido_analisis = f"""
-# Análisis Pendiente para {titulo}
-⚠️ **Falta la API Key de Gemini**
+            # Si falla, MOSTRAMOS EL ERROR EN PANTALLA
+            analisis_texto = f"""
+# ⚠️ DIAGNÓSTICO DE FALLO
+El sistema no puede analizar el PDF por la siguiente razón:
 
-Para que yo (el código) pueda leer y analizar este PDF automáticamente como hacía el chat, necesitas configurar tu `GEMINI_API_KEY` en el archivo `database.py`.
+### Estado: {ESTADO_CEREBRO}
+### Detalle: {ERROR_DETALLE}
 
-Mientras tanto, he cargado el archivo para que puedas abrirlo.
+**Solución:**
+1. Si dice "Error de Instalación": Arregla requirements.txt
+2. Si dice "Error de Clave": Revisa la variable GEMINI_API_KEY en database.py
 """
-            contenido_info = "# Sin IA"
+            infografia_texto = "❌ Sistema desconectado"
+            resumen_texto = f"Error: {ESTADO_CEREBRO}"
 
-        # 5. Guardar en la lista
+        # Guardar
         item = {
             "id": archivo,
-            "titulo": titulo,
-            "sociedad": "Auto-Detectada",
+            "titulo": archivo.replace(".pdf", ""),
+            "sociedad": "Auto",
             "especialidad": "UCI",
             "anio": "2024",
-            "resumen": resumen_final,
+            "resumen": resumen_texto,
             "url_fuente": "",
             "pdf_source": None,
             "pdf_bytes": contenido_bytes,
-            "analisis": contenido_analisis,
-            "infografia": contenido_info
+            "analisis": analisis_texto,
+            "infografia": infografia_texto
         }
         biblioteca.append(item)
 
