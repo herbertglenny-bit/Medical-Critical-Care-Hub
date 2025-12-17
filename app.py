@@ -11,15 +11,28 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- CSS HACK: OPTIMIZACIÓN DE ESPACIO VERTICAL ---
+# --- CSS HACK: MODO ULTRA-WIDE (SIN MÁRGENES) ---
 st.markdown("""
     <style>
+        /* Eliminar márgenes verticales y horizontales del contenedor principal */
         .block-container {
             padding-top: 1rem !important;
             padding-bottom: 0rem !important;
+            padding-left: 1rem !important;
+            padding-right: 1rem !important;
             margin-top: 0rem !important;
+            max-width: 100% !important;
         }
+        /* Ocultar el header predeterminado de Streamlit */
         header {visibility: hidden;}
+        
+        /* Ajuste fino para móviles/tablets */
+        @media (max-width: 576px) {
+            .block-container {
+                padding-left: 0.5rem !important;
+                padding-right: 0.5rem !important;
+            }
+        }
     </style>
 """, unsafe_allow_html=True)
 
@@ -133,7 +146,7 @@ if uploaded_file and api_key:
     # --- LAYOUT DE PANTALLA DIVIDIDA ---
     col_izq, col_der = st.columns([1, 1])
     
-    # --- COLUMNA IZQUIERDA: VISOR PDF ---
+    # --- COLUMNA IZQUIERDA: VISOR PDF AMPLIO ---
     with col_izq:
         c1, c2 = st.columns([3, 1])
         with c1:
@@ -148,14 +161,13 @@ if uploaded_file and api_key:
             )
         
         binary_data = uploaded_file.getvalue()
-        # Altura fija de 850px
-        pdf_viewer(input=binary_data, width=700, height=850) 
+        # width=1000 fuerza al visor a ocupar todo el ancho disponible de la columna
+        pdf_viewer(input=binary_data, width=1000, height=850) 
         
-    # --- COLUMNA DERECHA: IA CON SCROLL INDEPENDIENTE ---
+    # --- COLUMNA DERECHA: IA CON SCROLL ---
     with col_der:
         st.markdown("#### 🤖 Análisis Inteligente")
         
-        # AQUÍ ESTÁ LA MAGIA: Contenedor con altura fija y scroll
         with st.container(height=850, border=True):
             
             tab1, tab2, tab3 = st.tabs(["📋 Análisis", "🎨 Infografía", "💬 Chat"])
@@ -181,11 +193,9 @@ if uploaded_file and api_key:
                             st.error(f"Error: {e}")
 
             with tab3:
-                # Chatbot dentro del contenedor scrollable
                 for msg in st.session_state.chat_history:
                     st.chat_message(msg["role"]).write(msg["content"])
                 
-                # El input de chat se quedará pegado al fondo de este contenedor
                 if prompt := st.chat_input("Pregunta a la guía..."):
                     st.chat_message("user").write(prompt)
                     st.session_state.chat_history.append({"role": "user", "content": prompt})
