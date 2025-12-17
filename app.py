@@ -3,6 +3,7 @@ import google.generativeai as genai
 import PyPDF2
 from streamlit_pdf_viewer import pdf_viewer
 import base64
+import json
 
 # Importamos la base de datos simulada
 try:
@@ -18,7 +19,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- CSS: ESTILOS PROFESIONALES ---
+# --- CSS ---
 st.markdown("""
     <style>
         .block-container {
@@ -29,18 +30,32 @@ st.markdown("""
             max-width: 100% !important;
         }
         header {visibility: hidden;}
-        /* Estilo para las tarjetas de la biblioteca */
         .guide-card {
-            background-color: #f0f2f6;
-            padding: 20px;
-            border-radius: 10px;
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
             border-left: 5px solid #ff4b4b;
             margin-bottom: 10px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
         }
     </style>
 """, unsafe_allow_html=True)
 
 # --- PROMPTS MAESTROS ---
+# 1. Prompt para extraer metadatos automáticamente al subir el archivo
+PROMPT_METADATA = """
+Actúa como bibliotecario médico. Analiza la primera página de este documento y extrae la siguiente información en formato JSON estricto:
+{
+    "titulo": "Título completo de la guía",
+    "sociedad": "Nombre de la sociedad médica o autores (ej. ESICM, AHA)",
+    "anio": "Año de publicación",
+    "especialidad": "La especialidad médica más probable (ej. Medicina Intensiva, Cardiología)",
+    "resumen": "Un resumen de 2 líneas sobre el objetivo de la guía EN CASTELLANO."
+}
+Si no encuentras algún dato, déjalo en blanco.
+"""
+
+# 2. Prompts de Análisis Clínico
 PROMPT_ANALISIS = """
 # ROL: Médico Intensivista Senior.
 # OBJETIVO: Analizar GPC para sesión clínica.
@@ -64,30 +79,33 @@ PROMPT_INFOGRAFIA = """
 """
 
 # --- FUNCIONES ---
-def get_pdf_text(pdf_file):
+def get_pdf_text(pdf_file, pages=None):
     try:
         pdf_reader = PyPDF2.PdfReader(pdf_file)
         text = ""
-        for page in pdf_reader.pages:
-            text += page.extract_text() or ""
+        # Si pages es None, lee todo. Si es un número, lee solo esas páginas (para metadatos)
+        limit = len(pdf_reader.pages) if pages is None else min(pages, len(pdf_reader.pages))
+        for i in range(limit):
+            text += pdf_reader.pages[i].extract_text() or ""
         return text
     except: return None
 
 # --- INICIALIZACIÓN ESTADO ---
 if "view_mode" not in st.session_state:
-    st.session_state.view_mode = "home" # home, detail, admin
+    st.session_state.view_mode = "home"
 if "selected_guide" not in st.session_state:
     st.session_state.selected_guide = None
+# Estado para el formulario de Admin
+if "admin_form" not in st.session_state:
+    st.session_state.admin_form = {}
 
-# --- SIDEBAR DE NAVEGACIÓN ---
+# --- SIDEBAR ---
 with st.sidebar:
     st.image("https://cdn-icons-png.flaticon.com/512/3063/3063176.png", width=60)
     st.title("Medical Critical Care Hub")
     st.caption("Dr. Herbert Baquerizo Vargas")
-    
     st.divider()
     
-    # Menú Principal
     if st.button("🏠 Biblioteca de Guías", use_container_width=True):
         st.session_state.view_mode = "home"
         st.session_state.selected_guide = None
@@ -95,176 +113,127 @@ with st.sidebar:
 
     st.divider()
     
-    # Área Admin
     with st.expander("🔒 Área de Administrador"):
         admin_pass = st.text_input("Contraseña", type="password")
-        if admin_pass == st.secrets.get("ADMIN_PASSWORD", "admin123"):
+        # Contraseña por defecto admin123 si no está en secrets
+        correct_pass = st.secrets.get("ADMIN_PASSWORD", "admin123")
+        if admin_pass == correct_pass:
             if st.button("⚙️ Panel de Carga", use_container_width=True):
                 st.session_state.view_mode = "admin"
                 st.rerun()
         elif admin_pass:
-            st.error("Contraseña incorrecta")
+            st.error("Acceso denegado")
 
 # ==========================================
-# VISTA 1: HOME / BIBLIOTECA (PÚBLICA)
+# LÓGICA DE API KEY
+# ==========================================
+api_key = st.secrets.get("GOOGLE_API_KEY")
+if api_key:
+    genai.configure(api_key=api_key)
+
+# ==========================================
+# VISTA 1: HOME (BIBLIOTECA)
 # ==========================================
 if st.session_state.view_mode == "home":
     st.title("📚 Biblioteca de Guías Clínicas")
     
-    # Filtros
     col_search, col_filter = st.columns([3, 1])
     with col_search:
-        search_query = st.text_input("🔍 Buscar guía (Título, Sepsis, ARDS...)", "")
+        search_query = st.text_input("🔍 Buscar guía...", "")
     with col_filter:
         especialidad_filter = st.selectbox("Especialidad", ["Todas", "Medicina Intensiva", "Cardiología", "Neumología", "Anestesia", "Infecciosas"])
 
     st.divider()
     
-    # Grid de Resultados
     if not library:
-        st.info("La biblioteca está vacía. Accede al panel Admin para publicar la primera guía.")
+        st.info("La biblioteca está vacía.")
     
     for guide in library:
-        # Lógica de filtrado simple
+        # Filtros
         match_search = search_query.lower() in guide['titulo'].lower() or search_query.lower() in guide['resumen'].lower()
         match_esp = especialidad_filter == "Todas" or especialidad_filter == guide['especialidad']
         
         if match_search and match_esp:
             with st.container():
-                c1, c2 = st.columns([4, 1])
-                with c1:
-                    st.subheader(f"{guide['titulo']}")
-                    st.caption(f"📅 {guide['anio']} | 🏥 {guide['sociedad']} | 🩺 {guide['especialidad']}")
-                    st.write(guide['resumen'])
-                with c2:
-                    st.write("")
-                    st.write("")
-                    if st.button("📖 Leer Guía", key=f"btn_{guide['id']}", use_container_width=True):
-                        st.session_state.selected_guide = guide
-                        st.session_state.view_mode = "detail"
-                        st.rerun()
-                st.divider()
+                st.markdown(f"""
+                <div class="guide-card">
+                    <h3>{guide['titulo']}</h3>
+                    <p style="color:gray;">📅 {guide['anio']} | 🏥 {guide['sociedad']} | 🩺 {guide['especialidad']}</p>
+                    <p>{guide['resumen']}</p>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                if st.button("📖 Leer Guía Completa", key=f"btn_{guide['id']}"):
+                    st.session_state.selected_guide = guide
+                    st.session_state.view_mode = "detail"
+                    st.rerun()
 
 # ==========================================
-# VISTA 2: DETALLE DE GUÍA (SPLIT SCREEN)
+# VISTA 2: DETALLE (VISUALIZACIÓN)
 # ==========================================
 elif st.session_state.view_mode == "detail" and st.session_state.selected_guide:
     guide = st.session_state.selected_guide
     
-    # Botón Volver
     if st.button("⬅️ Volver a la Biblioteca"):
         st.session_state.view_mode = "home"
         st.rerun()
 
     st.markdown(f"## {guide['titulo']}")
     
-    # Configuración de Modelo para Chat (Si hay API Key)
-    model = None
-    if "GOOGLE_API_KEY" in st.secrets:
-        genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
-        model = genai.GenerativeModel('gemini-pro')
-
-    # Layout
     col_izq, col_der = st.columns([1, 1])
     
     with col_izq:
-        st.markdown("#### 📄 Documento Original")
-        # NOTA: En la versión "Repositorio", el PDF debería descargarse de una URL o estar en local.
-        # Como es una demo, avisamos si no hay PDF cargado en memoria.
-        if "pdf_bytes" in guide:
-             pdf_viewer(input=guide['pdf_bytes'], width=800, height=850)
-        else:
-            st.info("⚠️ Modo Lectura: El PDF original no está incrustado en esta demo. (El Admin debe subirlo a GitHub y enlazarlo).")
-            st.markdown(f"**[🔗 Enlace a la fuente oficial]({guide.get('url_fuente', '#')})**")
+        c1, c2, c3 = st.columns([2, 3, 2])
+        with c1: st.markdown("#### 📄 Original")
+        with c2: zoom_level = st.slider("🔍 Zoom", 600, 2000, 800, label_visibility="collapsed")
+        with c3: st.write("") # Placeholder
+        
+        with st.container(height=850, border=True):
+            if "pdf_bytes" in guide and guide["pdf_bytes"]:
+                 pdf_viewer(input=guide['pdf_bytes'], width=zoom_level)
+            else:
+                st.info("PDF no disponible en esta demo.")
+                st.markdown(f"**[🔗 Link externo]({guide.get('url_fuente', '#')})**")
 
     with col_der:
         st.markdown("#### 🤖 Análisis Inteligente")
         with st.container(height=850, border=True):
             tab1, tab2, tab3 = st.tabs(["📋 Análisis", "🎨 Infografía", "💬 Chat"])
             
-            with tab1:
-                st.markdown(guide['analisis'])
-            
-            with tab2:
-                st.markdown(guide['infografia'])
-            
+            with tab1: st.markdown(guide['analisis'])
+            with tab2: st.markdown(guide['infografia'])
             with tab3:
-                # Chatbot específico para esta guía (usando el texto pre-analizado si existe)
                 if "chat_history" not in st.session_state: st.session_state.chat_history = []
-                
                 for msg in st.session_state.chat_history:
                     st.chat_message(msg["role"]).write(msg["content"])
                 
                 if prompt := st.chat_input("Pregunta sobre esta guía..."):
                     st.chat_message("user").write(prompt)
                     st.session_state.chat_history.append({"role": "user", "content": prompt})
-                    if model:
-                        # RAG Simple usando el análisis como contexto (para ahorrar tokens/memoria)
+                    if api_key:
+                        model = genai.GenerativeModel('gemini-pro')
                         ctx = guide['analisis'] + "\n" + guide['infografia']
                         resp = model.generate_content(f"Contexto médico:\n{ctx}\n\nPregunta: {prompt}")
                         st.chat_message("assistant").write(resp.text)
                         st.session_state.chat_history.append({"role": "assistant", "content": resp.text})
-                    else:
-                        st.error("Chat no disponible (Falta API Key)")
 
 # ==========================================
-# VISTA 3: ADMIN PANEL (CREADOR DE CONTENIDO)
+# VISTA 3: ADMIN (AUTO-RELLENADO INTELIGENTE)
 # ==========================================
 elif st.session_state.view_mode == "admin":
-    st.title("⚙️ Panel de Publicación")
-    st.info("Sube una guía, analízala y obtén el código para añadirla a `database.py`.")
+    st.title("⚙️ Panel de Publicación Inteligente")
     
-    uploaded_file = st.file_uploader("Subir Nueva Guía (PDF)", type=['pdf'])
+    uploaded_file = st.file_uploader("1. Sube la Guía (PDF)", type=['pdf'])
     
-    c1, c2, c3 = st.columns(3)
-    meta_titulo = c1.text_input("Título Guía")
-    meta_sociedad = c2.text_input("Sociedad (ej. ESICM)")
-    meta_esp = c3.selectbox("Especialidad", ["Medicina Intensiva", "Cardiología", "Neumología", "Anestesia", "Otros"])
-    meta_anio = c1.text_input("Año")
-    meta_resumen = st.text_area("Resumen Corto (para la tarjeta)")
-    meta_url = st.text_input("URL Original (Link de descarga oficial)")
-
-    if uploaded_file and "GOOGLE_API_KEY" in st.secrets:
-        if st.button("🚀 ANALIZAR Y GENERAR CÓDIGO"):
-            genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
-            
-            # Intentar encontrar modelo Flash o Pro
-            try:
-                available = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
-                target = next((m for m in available if 'flash' in m), 'models/gemini-pro')
-                model = genai.GenerativeModel(target)
-                
-                with st.spinner("Leyendo PDF..."):
-                    pdf_text = get_pdf_text(uploaded_file)
-                
-                with st.spinner("Generando Análisis Clínico..."):
-                    res_analisis = model.generate_content(PROMPT_ANALISIS + "\nDOC:\n" + pdf_text).text
+    # LÓGICA DE AUTO-EXTRACCIÓN
+    if uploaded_file and api_key:
+        # Detectamos si acabamos de cargar un archivo nuevo para leer sus metadatos
+        if "last_uploaded" not in st.session_state or st.session_state.last_uploaded != uploaded_file.name:
+            with st.spinner("🤖 Leyendo PDF y extrayendo metadatos automáticamente..."):
+                try:
+                    # 1. Leer solo las primeras 3 páginas para metadatos
+                    text_preview = get_pdf_text(uploaded_file, pages=3)
                     
-                with st.spinner("Generando Infografía..."):
-                    res_info = model.generate_content(PROMPT_INFOGRAFIA + "\nDOC:\n" + pdf_text).text
-                
-                st.success("¡Análisis Completado!")
-                st.divider()
-                
-                # GENERADOR DE CÓDIGO
-                # Esto crea el bloque de texto exacto que debes pegar en database.py
-                code_snippet = f"""
-    {{
-        "id": "{meta_titulo.replace(' ', '_').lower()}",
-        "titulo": "{meta_titulo}",
-        "sociedad": "{meta_sociedad}",
-        "especialidad": "{meta_esp}",
-        "anio": "{meta_anio}",
-        "resumen": "{meta_resumen}",
-        "url_fuente": "{meta_url}",
-        "analisis": \"\"\"{res_analisis}\"\"\",
-        "infografia": \"\"\"{res_info}\"\"\",
-        "pdf_bytes": None  # Nota: Para ver el PDF real, se requiere configuración avanzada de almacenamiento.
-    }},
-                """
-                st.subheader("📋 Código para Publicar")
-                st.markdown("Copia el siguiente bloque y pégalo dentro de la lista `library` en tu archivo `database.py` en GitHub:")
-                st.code(code_snippet, language="python")
-                
-            except Exception as e:
-                st.error(f"Error: {e}")
+                    # 2. Consultar a Gemini
+                    model = genai.GenerativeModel('gemini-pro')
+                    response = model.generate_content(PRO
