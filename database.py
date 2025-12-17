@@ -19,8 +19,8 @@ library = [
         """,
         # En un entorno real, el PDF debería estar alojado en una URL o en la carpeta del repo
         "pdf_source": None 
-    }
-]
+    },
+
     {
         "id": "clinical_practice_gu",
         "titulo": "Clinical Practice Guidelines for the Prevention and Management of Pain, Agitation/Sedation, Delirium, Immobility, and Sleep Disruption in Adult Patients in the ICU",
@@ -389,4 +389,4 @@ graph TD
 ---""",
         "pdf_bytes": None 
     },
-                
+]
