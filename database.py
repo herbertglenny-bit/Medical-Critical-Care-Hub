@@ -1,6 +1,8 @@
 import os
+import time
 import google.generativeai as genai
 from pypdf import PdfReader
+import streamlit as st # Necesario para la memoria (caché)
 
 # ==========================================
 # 1. TU CLAVE AQUÍ
@@ -10,7 +12,7 @@ GEMINI_API_KEY = "AIzaSyBy9wai4pEyFCGQUiALSCzqYMOSj2foTjM"
 CARPETA_PDFS = "." 
 
 # ==========================================
-# 2. CONEXIÓN INTELIGENTE
+# 2. CONEXIÓN (MODELO ESTÁNDAR 1.5)
 # ==========================================
 ESTADO_CEREBRO = "Iniciando..."
 model = None
@@ -20,94 +22,61 @@ try:
         ESTADO_CEREBRO = "❌ ERROR DE CLAVE"
     else:
         genai.configure(api_key=GEMINI_API_KEY)
-        
-        # Buscamos el mejor modelo disponible automáticamente
-        modelo_elegido = None
-        try:
-            for m in genai.list_models():
-                if 'generateContent' in m.supported_generation_methods:
-                    if 'gemini' in m.name:
-                        modelo_elegido = m.name
-                        break 
-        except:
-            pass
-        
-        if not modelo_elegido: modelo_elegido = 'gemini-1.5-flash'
-            
-        print(f"Modelo IA activado: {modelo_elegido}")
-        model = genai.GenerativeModel(modelo_elegido)
+        # FORZAMOS EL MODELO 1.5 FLASH (Es el que tiene más cupo gratis)
+        model = genai.GenerativeModel('gemini-1.5-flash')
         ESTADO_CEREBRO = "✅ CONECTADO"
-
 except Exception as e:
     ESTADO_CEREBRO = f"❌ ERROR: {str(e)}"
 
 # ==========================================
-# 3. EL PROMPT "INTENSIVISTA SENIOR"
+# 3. FUNCIONES DE ANÁLISIS
 # ==========================================
 
 def analizar_con_ia(texto, archivo):
     if "ERROR" in ESTADO_CEREBRO:
         return None, None
     
-    # Este es el prompt potente que diseñamos al principio
     prompt = f"""
-    Actúa como un Médico Intensivista Senior y Experto en Educación Médica.
-    Analiza el siguiente texto extraído de un PDF: "{archivo}".
+    Actúa como un Médico Intensivista Senior.
+    Analiza este PDF: "{archivo}".
 
-    Genera una respuesta dividida en dos partes exactas separadas por la palabra "---SEPARADOR---".
+    Genera una respuesta con DOS PARTES separadas por "---SEPARADOR---".
 
-    PARTE 1: EL ANÁLISIS DETALLADO (Formato Markdown)
-    Debe tener esta estructura obligatoria:
-    1. # Ficha Técnica
-       - Título completo, Sociedad, Año y Objetivo principal en 1 línea.
-    2. # Análisis Delta (Novedades vs Práctica Anterior)
-       - Explica qué cambia respecto a guías previas.
-       - Qué es nuevo y qué queda obsoleto.
-    3. # Algoritmo Bedside
-       - GENERA CÓDIGO MERMAID (graph TD) que represente el flujo de decisión clínica del documento.
-       - Añade una breve explicación del algoritmo debajo.
-    4. # Rincón del Residente
-       - 3 a 5 "Learning Points" o perlas clínicas para llevar a casa.
-    5. # Incertidumbre
-       - Qué evidencia falta o es débil según el documento.
+    PARTE 1: EL ANÁLISIS (Markdown)
+    - # Ficha Técnica (1 línea)
+    - # Puntos Clave (3 bullets)
+    - # Resumen Ejecutivo (Breve)
+    - # Algoritmo (Si aplica, descríbelo en texto paso a paso)
 
-    PARTE 2: LA INFOGRAFÍA (Formato Markdown breve)
-    Estructura de Semáforo:
-    - # Semáforo de Recomendaciones
-    - 🟢 Hacer (Recomendaciones fuertes).
-    - 🟡 Considerar (Recomendaciones condicionales).
-    - 🔴 Evitar (No recomendado / Dañino).
-    - 📊 Dato Clave (Un número o porcentaje impactante del texto).
-
+    PARTE 2: LA INFOGRAFÍA (Muy breve)
+    - # Semáforo (🟢 Hacer / 🔴 Evitar)
+    
     ---SEPARADOR---
-    (Aquí empieza la parte 2)
+    (Aquí empieza parte 2)
 
-    TEXTO A ANALIZAR:
-    {texto[:30000]} 
+    TEXTO: {texto[:25000]} 
     """
     
     try:
+        # Esperamos 4 segundos antes de llamar para no saturar (Rate Limit)
+        time.sleep(4) 
         response = model.generate_content(prompt)
         texto_completo = response.text
         
-        # Separamos el Análisis de la Infografía usando nuestra "marca"
         if "---SEPARADOR---" in texto_completo:
             partes = texto_completo.split("---SEPARADOR---")
-            analisis = partes[0].strip()
-            infografia = partes[1].strip()
+            return partes[0].strip(), partes[1].strip()
         else:
-            analisis = texto_completo
-            infografia = "# Error de formato\nLa IA no generó el separador."
-            
-        return analisis, infografia
-        
+            return texto_completo, "Error de formato visual."
     except Exception as e:
-        return f"Error IA: {e}", "Error visual"
+        return f"Error de Cuota o IA: {e}", "Error visual"
 
 # ==========================================
-# 4. MOTOR DE GENERACIÓN
+# 4. MOTOR CON MEMORIA (CACHÉ)
 # ==========================================
 
+# Este decorador hace magia: Si ya leyó los PDFs hoy, no vuelve a gastar IA.
+@st.cache_data(show_spinner=True) 
 def generar_biblioteca_automatica():
     biblioteca = []
     
@@ -123,22 +92,24 @@ def generar_biblioteca_automatica():
             with open(ruta, "rb") as f:
                 contenido_bytes = f.read()
             
-            # Extraer texto (leemos más páginas para tener mejor contexto)
             reader = PdfReader(ruta)
             texto_pdf = ""
-            for page in reader.pages[:15]: 
+            for page in reader.pages[:10]: 
                 texto_pdf += page.extract_text() or ""
         except:
             contenido_bytes = None
             texto_pdf = ""
 
         # GENERAR CONTENIDO
-        titulo = archivo.replace(".pdf", "").replace("_", " ").title()
-        
         if "CONECTADO" in ESTADO_CEREBRO:
-            print(f"🧠 Analizando {archivo} con IA...")
-            analisis_texto, infografia_texto = analizar_con_ia(texto_pdf, archivo)
-            resumen_texto = "Análisis completo generado por IA."
+            # Solo analizamos si hay texto
+            if len(texto_pdf) > 100:
+                analisis_texto, infografia_texto = analizar_con_ia(texto_pdf, archivo)
+                resumen_texto = "Análisis IA completado."
+            else:
+                analisis_texto = "PDF sin texto leíble (puede ser imagen)."
+                infografia_texto = "Error"
+                resumen_texto = "PDF vacío o imagen."
         else:
             analisis_texto = f"# Error\n{ESTADO_CEREBRO}"
             infografia_texto = "❌ Offline"
@@ -146,8 +117,8 @@ def generar_biblioteca_automatica():
 
         item = {
             "id": archivo,
-            "titulo": titulo,
-            "sociedad": "Auto-Detectada",
+            "titulo": archivo.replace(".pdf", "").replace("_", " ").title(),
+            "sociedad": "Auto",
             "especialidad": "UCI",
             "anio": "2024",
             "resumen": resumen_texto,
@@ -161,4 +132,13 @@ def generar_biblioteca_automatica():
 
     return biblioteca
 
+# Ejecutamos
 library = generar_biblioteca_automatica()
+¿Qué debes hacer ahora?
+Pega el código y pon tu clave.
+
+ESPERA 1 MINUTO antes de recargar la web (para que Google te perdone el castigo de "exceso de cuota").
+
+Recarga la web UNA sola vez y ten paciencia. Verás arriba a la derecha un muñequito "running" (corriendo). Déjalo pensar. Tardará unos 5-10 segundos por cada PDF que tengas.
+
+Si te vuelve a salir el error 429, significa que todavía estás "castigado" por Google. Espera un poco más y vuelve a intentarlo. Con este código nuevo (usando 1.5-flash y time.sleep), no debería volver a pasarte en el futuro.
