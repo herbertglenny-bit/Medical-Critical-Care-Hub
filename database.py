@@ -1,3 +1,6 @@
+# AQUÍ SE GUARDAN LAS GUÍAS PUBLICADAS
+# Copia y pega los bloques generados por el Admin al final de esta lista.
+
 library = [
     {
         "id": "demo_001",
@@ -15,7 +18,6 @@ library = [
         # Ejemplo de Infografía
         Aquí iría la infografía...
         """,
-        # En un entorno real, el PDF debería estar alojado en una URL o en la carpeta del repo
         "pdf_bytes": None
     },
 
