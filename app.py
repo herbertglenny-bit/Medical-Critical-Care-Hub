@@ -10,32 +10,31 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- PROMPTS MAESTROS ---
+# --- PROMPTS ---
 PROMPT_ANALISIS = """
 # ROL
-Actúa como un Médico Intensivista Senior y Experto en Educación Médica Universitaria.
+Actúa como un Médico Intensivista Senior.
 # OBJETIVO
-Analizar en profundidad la Guía de Práctica Clínica (GPC) adjunta para una sesión clínica.
+Analizar la Guía de Práctica Clínica (GPC) adjunta.
 # INSTRUCCIONES
 1. Ficha Técnica (Título, Año, Sociedad, Población).
 2. Análisis Delta: Nuevas recomendaciones fuertes, Conceptos obsoletos, Cambios en dosis.
 3. Algoritmo Bedside: Resucitación, Mantenimiento, Destete.
 4. Rincón del Residente: 3 Puntos clave, 3 Preguntas de examen, Evidencia clave.
 5. Áreas de Incertidumbre.
-Usa formato Markdown claro.
 """
 
 PROMPT_INFOGRAFIA = """
 # ROL
-Experto en Comunicación Científica Visual.
+Experto en Comunicación Visual y UCI.
 # OBJETIVO
-Estructurar una Infografía Técnica (One-Page Visual Summary).
+Estructurar Infografía One-Page.
 # ESTRUCTURA
-1. Encabezado (Título, Subtítulo).
-2. Semáforo de Cambios (Rojo/Stop, Amarillo/Precaución, Verde/Go).
-3. Algoritmo de Flujo (Paso 1 -> Paso 2 -> Paso 3).
-4. The Big Numbers (Cifras grandes).
-5. Resumen Ejecutivo (3 mensajes clave, Nivel de evidencia).
+1. Encabezado.
+2. Semáforo de Cambios (Rojo/Amarillo/Verde).
+3. Algoritmo de Flujo.
+4. The Big Numbers.
+5. Resumen Ejecutivo.
 """
 
 # --- FUNCIONES ---
@@ -64,35 +63,36 @@ with st.sidebar:
 # --- LÓGICA PRINCIPAL ---
 if uploaded_file and api_key:
     try:
+        # Configuración
         genai.configure(api_key=api_key)
         
-        # MODELO CORREGIDO Y ESPACIOS ALINEADOS
-        model = genai.GenerativeModel('gemini-pro') 
+        # MODELO: Usamos Flash por su capacidad de contexto largo
+        model = genai.GenerativeModel('gemini-1.5-flash') 
 
         if "pdf_text" not in st.session_state or st.session_state.get("file_name") != uploaded_file.name:
-            with st.spinner("Procesando PDF..."):
+            with st.spinner("Procesando documento..."):
                 text = get_pdf_text(uploaded_file)
                 st.session_state.pdf_text = text
                 st.session_state.file_name = uploaded_file.name
                 st.session_state.chat_history = []
-
+        
         st.success(f"Guía cargada: {uploaded_file.name}")
         
+        # Pestañas
         tab1, tab2, tab3 = st.tabs(["📋 Análisis", "🎨 Infografía", "💬 Chat"])
 
         with tab1:
             if st.button("Analizar Guía"):
-                with st.spinner("Generando análisis clínico..."):
-                    # Prompt + Texto del PDF
-                    full_prompt = PROMPT_ANALISIS + "\n\nDOCUMENTO:\n" + st.session_state.pdf_text
-                    response = model.generate_content(full_prompt)
+                with st.spinner("Generando análisis..."):
+                    prompt_completo = PROMPT_ANALISIS + "\n\nDOCUMENTO:\n" + st.session_state.pdf_text
+                    response = model.generate_content(prompt_completo)
                     st.markdown(response.text)
 
         with tab2:
             if st.button("Crear Infografía"):
-                with st.spinner("Diseñando estructura visual..."):
-                    full_prompt = PROMPT_INFOGRAFIA + "\n\nDOCUMENTO:\n" + st.session_state.pdf_text
-                    response = model.generate_content(full_prompt)
+                with st.spinner("Diseñando visuales..."):
+                    prompt_completo = PROMPT_INFOGRAFIA + "\n\nDOCUMENTO:\n" + st.session_state.pdf_text
+                    response = model.generate_content(prompt_completo)
                     st.markdown(response.text)
 
         with tab3:
@@ -103,15 +103,14 @@ if uploaded_file and api_key:
                 st.chat_message("user").write(prompt)
                 st.session_state.chat_history.append({"role": "user", "content": prompt})
                 
-                # Chat logic
-                chat_prompt = f"Contexto: {st.session_state.pdf_text}\n\nPregunta: {prompt}\nResponde solo basándote en el contexto."
+                chat_prompt = f"Contexto: {st.session_state.pdf_text}\n\nPregunta: {prompt}\nResponde solo según el contexto."
                 resp = model.generate_content(chat_prompt)
                 
                 st.chat_message("assistant").write(resp.text)
                 st.session_state.chat_history.append({"role": "assistant", "content": resp.text})
 
     except Exception as e:
-        st.error(f"Error técnico: {e}")
+        st.error(f"Error detectado: {e}")
 
 elif not api_key:
     st.warning("Introduce tu API Key en la barra lateral.")
