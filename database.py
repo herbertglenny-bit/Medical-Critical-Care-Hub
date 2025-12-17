@@ -2,7 +2,7 @@ import os
 
 # --- CONFIGURACIÓN ---
 # Nombre de la carpeta donde pondrás los PDFs
-CARPETA_PDFS = "pdfs_guias"
+CARPETA_PDFS = "."
 
 def generar_biblioteca_automatica():
     biblioteca = []
