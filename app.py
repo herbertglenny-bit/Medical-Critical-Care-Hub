@@ -1,7 +1,7 @@
 import streamlit as st
 import google.generativeai as genai
 import PyPDF2
-from streamlit_pdf_viewer import pdf_viewer # LIBRERÍA NUEVA
+from streamlit_pdf_viewer import pdf_viewer
 
 # --- CONFIGURACIÓN DE LA PÁGINA ---
 st.set_page_config(
@@ -108,35 +108,37 @@ if uploaded_file and api_key:
         except:
             st.session_state.target_model = 'models/gemini-pro'
 
-    # Configuramos el modelo
     model = genai.GenerativeModel(st.session_state.target_model)
     
-    # Procesar PDF (Texto)
+    # Procesar PDF
     if "pdf_text" not in st.session_state or st.session_state.get("file_name") != uploaded_file.name:
-        with st.spinner(f"Procesando documento con {st.session_state.target_model}..."):
+        with st.spinner(f"Procesando documento..."):
             text = get_pdf_text(uploaded_file)
             st.session_state.pdf_text = text
             st.session_state.file_name = uploaded_file.name
             st.session_state.chat_history = []
     
     # --- LAYOUT DE PANTALLA DIVIDIDA ---
-    col_izq, col_der = st.columns(2)
+    col_izq, col_der = st.columns([1, 1]) # Proporción 50% - 50%
     
-    # --- COLUMNA IZQUIERDA: VISOR PDF SEGURO ---
+    # --- COLUMNA IZQUIERDA: VISOR PDF AJUSTADO ---
     with col_izq:
-        st.subheader("📄 Documento Original")
-        st.download_button(
-            label="💾 Descargar PDF",
-            data=uploaded_file.getvalue(),
-            file_name=uploaded_file.name,
-            mime="application/pdf"
-        )
-        st.divider()
+        # Colocamos el botón de descarga muy discreto arriba a la derecha
+        col_btn_descarga, col_espacio = st.columns([1, 2])
+        with col_btn_descarga:
+             st.download_button(
+                label="📥 Bajar PDF",
+                data=uploaded_file.getvalue(),
+                file_name=uploaded_file.name,
+                mime="application/pdf",
+                use_container_width=True
+            )
         
-        # USAMOS LA NUEVA LIBRERÍA AQUÍ
-        # width=700 asegura que se vea grande
+        # Visor de PDF con altura fija y scroll interno
         binary_data = uploaded_file.getvalue()
-        pdf_viewer(input=binary_data, width=700)
+        # height=800 define la altura de la ventana del PDF.
+        # Al ser fija, si el PDF es más largo, aparece el scroll lateral automáticamente.
+        pdf_viewer(input=binary_data, width=700, height=800) 
         
     # --- COLUMNA DERECHA: IA ---
     with col_der:
@@ -145,7 +147,7 @@ if uploaded_file and api_key:
         tab1, tab2, tab3 = st.tabs(["📋 Análisis", "🎨 Infografía", "💬 Chat"])
 
         with tab1:
-            st.info("Genera un resumen clínico estructurado.")
+            st.caption("Resumen clínico estructurado.")
             if st.button("Generar Informe Intensivista", key="btn_analisis"):
                 with st.spinner("Analizando evidencia..."):
                     try:
@@ -156,7 +158,7 @@ if uploaded_file and api_key:
                         st.error(f"Error: {e}")
 
         with tab2:
-            st.info("Extrae los datos clave para diseño visual.")
+            st.caption("Datos clave para diseño visual.")
             if st.button("Generar Estructura Visual", key="btn_info"):
                 with st.spinner("Estructurando datos..."):
                     try:
@@ -167,7 +169,7 @@ if uploaded_file and api_key:
                         st.error(f"Error: {e}")
 
         with tab3:
-            st.info("Pregunta dudas específicas al documento.")
+            st.caption("Pregunta dudas específicas.")
             chat_container = st.container()
             with chat_container:
                 for msg in st.session_state.chat_history:
