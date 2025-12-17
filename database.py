@@ -5,32 +5,46 @@ from pypdf import PdfReader
 import streamlit as st
 
 # ==========================================
-# 1. TU CLAVE AQUÍ (IMPORTANTE: NO BORRES LAS COMILLAS)
+# 1. TU CLAVE AQUÍ
 # ==========================================
-GEMINI_API_KEY = "AIzaSyBy9wai4pEyFCGQUiALSCzqYMOSj2foTjM" 
+GEMINI_API_KEY = "AQUI_TU_CLAVE_AIzaSy..." 
 
 CARPETA_PDFS = "." 
 
 # ==========================================
-# 2. CONEXIÓN (MODELO ESTÁNDAR 1.5)
+# 2. CONEXIÓN INTELIGENTE (AUTO-SELECTOR + RETRY)
 # ==========================================
 ESTADO_CEREBRO = "Iniciando..."
 model = None
 
 try:
-    # Verificamos que la clave no sea el texto de ejemplo
-    if "AQUI_TU_CLAVE" in GEMINI_API_KEY:
-        ESTADO_CEREBRO = "❌ ERROR: NO HAS PUESTO LA CLAVE"
+    if "AIza" not in GEMINI_API_KEY:
+        ESTADO_CEREBRO = "❌ ERROR: FALTA CLAVE"
     else:
         genai.configure(api_key=GEMINI_API_KEY)
-        # Usamos el modelo 1.5 Flash (Gratuito y rápido)
-        model = genai.GenerativeModel('gemini-1.5-flash')
+        
+        # --- RECUPERAMOS EL AUTO-SELECTOR QUE SÍ FUNCIONABA ---
+        modelo_elegido = ""
+        try:
+            for m in genai.list_models():
+                if 'generateContent' in m.supported_generation_methods:
+                    if 'gemini' in m.name:
+                        modelo_elegido = m.name
+                        break
+        except:
+            pass
+        
+        if not modelo_elegido: modelo_elegido = 'gemini-pro'
+
+        print(f"✅ Modelo recuperado: {modelo_elegido}")
+        model = genai.GenerativeModel(modelo_elegido)
         ESTADO_CEREBRO = "✅ CONECTADO"
+
 except Exception as e:
     ESTADO_CEREBRO = f"❌ ERROR TÉCNICO: {str(e)}"
 
 # ==========================================
-# 3. FUNCIONES DE ANÁLISIS
+# 3. PROMPT DE INTENSIVISTA (EL BUENO)
 # ==========================================
 
 def analizar_con_ia(texto, archivo):
@@ -38,16 +52,14 @@ def analizar_con_ia(texto, archivo):
         return None, None
     
     prompt = f"""
-    Actúa como un Médico Intensivista Senior.
-    Analiza este PDF: "{archivo}".
-
+    Actúa como un Médico Intensivista Senior. Analiza este PDF: "{archivo}".
     Genera una respuesta con DOS PARTES separadas por "---SEPARADOR---".
 
     PARTE 1: EL ANÁLISIS (Markdown)
-    - # Ficha Técnica (1 línea)
-    - # Puntos Clave (3 bullets)
-    - # Resumen Ejecutivo (Breve)
-    - # Algoritmo (Si aplica, descríbelo en texto paso a paso)
+    - # Ficha Técnica (Título, Año, Sociedad)
+    - # Puntos Clave (3-4 bullets con lo más importante)
+    - # Resumen Ejecutivo (De qué trata en 2 líneas)
+    - # Algoritmo Bedside (Describe los pasos de decisión clínica en lista numerada)
 
     PARTE 2: LA INFOGRAFÍA (Muy breve)
     - # Semáforo (🟢 Hacer / 🔴 Evitar)
@@ -55,12 +67,12 @@ def analizar_con_ia(texto, archivo):
     ---SEPARADOR---
     (Aquí empieza parte 2)
 
-    TEXTO: {texto[:25000]} 
+    TEXTO PDF: {texto[:25000]} 
     """
     
     try:
-        # Pausa de seguridad para evitar Error 429
-        time.sleep(2) 
+        # Pausa de 4 segundos para evitar el error 429 (Cuota)
+        time.sleep(4) 
         response = model.generate_content(prompt)
         texto_completo = response.text
         
@@ -68,12 +80,12 @@ def analizar_con_ia(texto, archivo):
             partes = texto_completo.split("---SEPARADOR---")
             return partes[0].strip(), partes[1].strip()
         else:
-            return texto_completo, "Error de formato visual."
+            return texto_completo, "Error visual."
     except Exception as e:
         return f"Error IA: {e}", "Error visual"
 
 # ==========================================
-# 4. MOTOR CON MEMORIA (CACHÉ)
+# 4. MOTOR CON MEMORIA (PARA NO GASTAR SALDO)
 # ==========================================
 
 @st.cache_data(show_spinner=False) 
@@ -86,7 +98,6 @@ def generar_biblioteca_automatica():
     archivos = sorted([f for f in os.listdir(CARPETA_PDFS) if f.lower().endswith('.pdf')])
 
     for archivo in archivos:
-        # Leer PDF físico
         try:
             ruta = os.path.join(CARPETA_PDFS, archivo)
             with open(ruta, "rb") as f:
@@ -94,14 +105,12 @@ def generar_biblioteca_automatica():
             
             reader = PdfReader(ruta)
             texto_pdf = ""
-            # Leemos primeras 10 páginas
             for page in reader.pages[:10]: 
                 texto_pdf += page.extract_text() or ""
         except:
             contenido_bytes = None
             texto_pdf = ""
 
-        # GENERAR CONTENIDO
         if "CONECTADO" in ESTADO_CEREBRO:
             if len(texto_pdf) > 50:
                 analisis_texto, infografia_texto = analizar_con_ia(texto_pdf, archivo)
@@ -132,5 +141,4 @@ def generar_biblioteca_automatica():
 
     return biblioteca
 
-# Ejecutamos
 library = generar_biblioteca_automatica()
