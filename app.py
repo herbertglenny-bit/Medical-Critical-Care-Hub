@@ -11,8 +11,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- CSS HACK: ELIMINAR ESPACIOS VACÍOS SUPERIORES ---
-# Esto reduce el margen superior drásticamente para aprovechar la pantalla
+# --- CSS HACK: OPTIMIZACIÓN DE ESPACIO VERTICAL ---
 st.markdown("""
     <style>
         .block-container {
@@ -20,9 +19,7 @@ st.markdown("""
             padding-bottom: 0rem !important;
             margin-top: 0rem !important;
         }
-        header {
-            visibility: hidden;
-        }
+        header {visibility: hidden;}
     </style>
 """, unsafe_allow_html=True)
 
@@ -138,7 +135,6 @@ if uploaded_file and api_key:
     
     # --- COLUMNA IZQUIERDA: VISOR PDF ---
     with col_izq:
-        # Fila compacta para el título y descarga
         c1, c2 = st.columns([3, 1])
         with c1:
             st.markdown("#### 📄 Documento Original")
@@ -148,57 +144,59 @@ if uploaded_file and api_key:
                 data=uploaded_file.getvalue(),
                 file_name=uploaded_file.name,
                 mime="application/pdf",
-                key="dl_btn"
+                use_container_width=True
             )
         
-        # Visor de PDF Ajustado
         binary_data = uploaded_file.getvalue()
-        # height=850px es una buena altura para ver casi una página entera en laptops
+        # Altura fija de 850px
         pdf_viewer(input=binary_data, width=700, height=850) 
         
-    # --- COLUMNA DERECHA: IA ---
+    # --- COLUMNA DERECHA: IA CON SCROLL INDEPENDIENTE ---
     with col_der:
         st.markdown("#### 🤖 Análisis Inteligente")
         
-        tab1, tab2, tab3 = st.tabs(["📋 Análisis", "🎨 Infografía", "💬 Chat"])
+        # AQUÍ ESTÁ LA MAGIA: Contenedor con altura fija y scroll
+        with st.container(height=850, border=True):
+            
+            tab1, tab2, tab3 = st.tabs(["📋 Análisis", "🎨 Infografía", "💬 Chat"])
 
-        with tab1:
-            if st.button("Generar Informe Intensivista", key="btn_analisis"):
-                with st.spinner("Analizando evidencia..."):
-                    try:
-                        full_prompt = PROMPT_ANALISIS + "\n\nDOCUMENTO:\n" + st.session_state.pdf_text
-                        response = model.generate_content(full_prompt)
-                        st.markdown(response.text)
-                    except Exception as e:
-                        st.error(f"Error: {e}")
+            with tab1:
+                if st.button("Generar Informe Intensivista", key="btn_analisis"):
+                    with st.spinner("Analizando evidencia..."):
+                        try:
+                            full_prompt = PROMPT_ANALISIS + "\n\nDOCUMENTO:\n" + st.session_state.pdf_text
+                            response = model.generate_content(full_prompt)
+                            st.markdown(response.text)
+                        except Exception as e:
+                            st.error(f"Error: {e}")
 
-        with tab2:
-            if st.button("Generar Estructura Visual", key="btn_info"):
-                with st.spinner("Estructurando datos..."):
-                    try:
-                        full_prompt = PROMPT_INFOGRAFIA + "\n\nDOCUMENTO:\n" + st.session_state.pdf_text
-                        response = model.generate_content(full_prompt)
-                        st.markdown(response.text)
-                    except Exception as e:
-                        st.error(f"Error: {e}")
+            with tab2:
+                if st.button("Generar Estructura Visual", key="btn_info"):
+                    with st.spinner("Estructurando datos..."):
+                        try:
+                            full_prompt = PROMPT_INFOGRAFIA + "\n\nDOCUMENTO:\n" + st.session_state.pdf_text
+                            response = model.generate_content(full_prompt)
+                            st.markdown(response.text)
+                        except Exception as e:
+                            st.error(f"Error: {e}")
 
-        with tab3:
-            chat_container = st.container()
-            with chat_container:
+            with tab3:
+                # Chatbot dentro del contenedor scrollable
                 for msg in st.session_state.chat_history:
                     st.chat_message(msg["role"]).write(msg["content"])
-            
-            if prompt := st.chat_input("Pregunta a la guía..."):
-                st.chat_message("user").write(prompt)
-                st.session_state.chat_history.append({"role": "user", "content": prompt})
                 
-                try:
-                    chat_prompt = f"Actúa como experto médico. Contexto de la guía:\n{st.session_state.pdf_text}\n\nPregunta: {prompt}\nRespuesta:"
-                    resp = model.generate_content(chat_prompt)
-                    st.chat_message("assistant").write(resp.text)
-                    st.session_state.chat_history.append({"role": "assistant", "content": resp.text})
-                except Exception as e:
-                    st.error(f"Error respondiendo: {e}")
+                # El input de chat se quedará pegado al fondo de este contenedor
+                if prompt := st.chat_input("Pregunta a la guía..."):
+                    st.chat_message("user").write(prompt)
+                    st.session_state.chat_history.append({"role": "user", "content": prompt})
+                    
+                    try:
+                        chat_prompt = f"Actúa como experto médico. Contexto de la guía:\n{st.session_state.pdf_text}\n\nPregunta: {prompt}\nRespuesta:"
+                        resp = model.generate_content(chat_prompt)
+                        st.chat_message("assistant").write(resp.text)
+                        st.session_state.chat_history.append({"role": "assistant", "content": resp.text})
+                    except Exception as e:
+                        st.error(f"Error respondiendo: {e}")
 
 elif not api_key:
     st.warning("⚠️ Configura la API Key en los Secrets.")
