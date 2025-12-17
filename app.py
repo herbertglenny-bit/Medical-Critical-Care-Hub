@@ -11,6 +11,21 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
+# --- CSS HACK: ELIMINAR ESPACIOS VACÍOS SUPERIORES ---
+# Esto reduce el margen superior drásticamente para aprovechar la pantalla
+st.markdown("""
+    <style>
+        .block-container {
+            padding-top: 1rem !important;
+            padding-bottom: 0rem !important;
+            margin-top: 0rem !important;
+        }
+        header {
+            visibility: hidden;
+        }
+    </style>
+""", unsafe_allow_html=True)
+
 # --- PROMPTS MAESTROS ---
 PROMPT_ANALISIS = """
 # ROL
@@ -68,11 +83,11 @@ def get_pdf_text(pdf_file):
     except Exception as e:
         return None
 
-# --- INTERFAZ ---
+# --- INTERFAZ SIDEBAR ---
 with st.sidebar:
-    st.image("https://cdn-icons-png.flaticon.com/512/3063/3063176.png", width=80)
-    st.title("Medical Critical Care Hub")
-    st.markdown("**Dr. Herbert Baquerizo Vargas**")
+    st.image("https://cdn-icons-png.flaticon.com/512/3063/3063176.png", width=70)
+    st.markdown("### Medical Critical Care Hub")
+    st.caption("**Dr. Herbert Baquerizo Vargas**")
     st.caption("Althaia, Xarxa Assistencial Universitària de Manresa")
     st.divider()
     
@@ -112,42 +127,42 @@ if uploaded_file and api_key:
     
     # Procesar PDF
     if "pdf_text" not in st.session_state or st.session_state.get("file_name") != uploaded_file.name:
-        with st.spinner(f"Procesando documento..."):
+        with st.spinner(f"Procesando..."):
             text = get_pdf_text(uploaded_file)
             st.session_state.pdf_text = text
             st.session_state.file_name = uploaded_file.name
             st.session_state.chat_history = []
     
     # --- LAYOUT DE PANTALLA DIVIDIDA ---
-    col_izq, col_der = st.columns([1, 1]) # Proporción 50% - 50%
+    col_izq, col_der = st.columns([1, 1])
     
-    # --- COLUMNA IZQUIERDA: VISOR PDF AJUSTADO ---
+    # --- COLUMNA IZQUIERDA: VISOR PDF ---
     with col_izq:
-        # Colocamos el botón de descarga muy discreto arriba a la derecha
-        col_btn_descarga, col_espacio = st.columns([1, 2])
-        with col_btn_descarga:
+        # Fila compacta para el título y descarga
+        c1, c2 = st.columns([3, 1])
+        with c1:
+            st.markdown("#### 📄 Documento Original")
+        with c2:
              st.download_button(
                 label="📥 Bajar PDF",
                 data=uploaded_file.getvalue(),
                 file_name=uploaded_file.name,
                 mime="application/pdf",
-                use_container_width=True
+                key="dl_btn"
             )
         
-        # Visor de PDF con altura fija y scroll interno
+        # Visor de PDF Ajustado
         binary_data = uploaded_file.getvalue()
-        # height=800 define la altura de la ventana del PDF.
-        # Al ser fija, si el PDF es más largo, aparece el scroll lateral automáticamente.
-        pdf_viewer(input=binary_data, width=700, height=800) 
+        # height=850px es una buena altura para ver casi una página entera en laptops
+        pdf_viewer(input=binary_data, width=700, height=850) 
         
     # --- COLUMNA DERECHA: IA ---
     with col_der:
-        st.subheader("🤖 Análisis Inteligente")
+        st.markdown("#### 🤖 Análisis Inteligente")
         
         tab1, tab2, tab3 = st.tabs(["📋 Análisis", "🎨 Infografía", "💬 Chat"])
 
         with tab1:
-            st.caption("Resumen clínico estructurado.")
             if st.button("Generar Informe Intensivista", key="btn_analisis"):
                 with st.spinner("Analizando evidencia..."):
                     try:
@@ -158,7 +173,6 @@ if uploaded_file and api_key:
                         st.error(f"Error: {e}")
 
         with tab2:
-            st.caption("Datos clave para diseño visual.")
             if st.button("Generar Estructura Visual", key="btn_info"):
                 with st.spinner("Estructurando datos..."):
                     try:
@@ -169,7 +183,6 @@ if uploaded_file and api_key:
                         st.error(f"Error: {e}")
 
         with tab3:
-            st.caption("Pregunta dudas específicas.")
             chat_container = st.container()
             with chat_container:
                 for msg in st.session_state.chat_history:
