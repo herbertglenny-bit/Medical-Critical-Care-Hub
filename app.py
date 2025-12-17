@@ -5,7 +5,7 @@ from streamlit_pdf_viewer import pdf_viewer
 import base64
 import json
 
-# Importamos la base de datos simulada
+# Importamos la base de datos
 try:
     from database import library
 except ImportError:
@@ -19,7 +19,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- CSS: ESTILOS ---
+# --- CSS ---
 st.markdown("""
     <style>
         .block-container {
@@ -41,7 +41,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- PROMPTS MAESTROS ---
+# --- PROMPTS ---
 PROMPT_METADATA = """
 Actúa como bibliotecario médico. Analiza la primera página de este documento y extrae la siguiente información en formato JSON estricto:
 {
@@ -51,7 +51,7 @@ Actúa como bibliotecario médico. Analiza la primera página de este documento 
     "especialidad": "La especialidad médica más probable (ej. Medicina Intensiva, Cardiología)",
     "resumen": "Un resumen de 2 líneas sobre el objetivo de la guía EN CASTELLANO."
 }
-Si no encuentras algún dato, déjalo en blanco.
+Si no encuentras algún dato, déjalo en blanco. No uses Markdown, solo JSON puro.
 """
 
 PROMPT_ANALISIS = """
@@ -87,13 +87,25 @@ def get_pdf_text(pdf_file, pages=None):
         return text
     except: return None
 
-# --- INICIALIZACIÓN ESTADO ---
-if "view_mode" not in st.session_state:
-    st.session_state.view_mode = "home"
-if "selected_guide" not in st.session_state:
-    st.session_state.selected_guide = None
-if "admin_form" not in st.session_state:
-    st.session_state.admin_form = {}
+def find_best_model():
+    """Busca automáticamente un modelo que funcione en tu cuenta"""
+    try:
+        models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
+        # Prioridad: Flash > Pro > Cualquiera
+        if any('flash' in m for m in models):
+            return next(m for m in models if 'flash' in m)
+        elif any('pro' in m for m in models):
+            return next(m for m in models if 'pro' in m)
+        elif models:
+            return models[0]
+    except:
+        pass
+    return 'models/gemini-pro' # Fallback final
+
+# --- INICIALIZACIÓN ---
+if "view_mode" not in st.session_state: st.session_state.view_mode = "home"
+if "selected_guide" not in st.session_state: st.session_state.selected_guide = None
+if "admin_form" not in st.session_state: st.session_state.admin_form = {}
 
 # --- SIDEBAR ---
 with st.sidebar:
@@ -125,7 +137,7 @@ if api_key:
     genai.configure(api_key=api_key)
 
 # ==========================================
-# VISTA 1: HOME (BIBLIOTECA)
+# VISTA 1: HOME
 # ==========================================
 if st.session_state.view_mode == "home":
     st.title("📚 Biblioteca de Guías Clínicas")
@@ -203,9 +215,10 @@ elif st.session_state.view_mode == "detail" and st.session_state.selected_guide:
                     st.chat_message("user").write(prompt)
                     st.session_state.chat_history.append({"role": "user", "content": prompt})
                     if api_key:
-                        model = genai.GenerativeModel('gemini-pro')
-                        ctx = guide['analisis'] + "\n" + guide['infografia']
                         try:
+                            best_model = find_best_model() # USAMOS EL BUSCADOR AUTOMÁTICO
+                            model = genai.GenerativeModel(best_model)
+                            ctx = guide['analisis'] + "\n" + guide['infografia']
                             resp = model.generate_content(f"Contexto médico:\n{ctx}\n\nPregunta: {prompt}")
                             st.chat_message("assistant").write(resp.text)
                             st.session_state.chat_history.append({"role": "assistant", "content": resp.text})
@@ -225,8 +238,11 @@ elif st.session_state.view_mode == "admin":
             with st.spinner("🤖 Extrayendo metadatos..."):
                 try:
                     text_preview = get_pdf_text(uploaded_file, pages=3)
-                    model = genai.GenerativeModel('gemini-pro')
-                    # Aseguramos cierre de paréntesis aquí
+                    
+                    # AQUÍ ESTABA EL ERROR: USAMOS AHORA find_best_model()
+                    best_model_name = find_best_model()
+                    model = genai.GenerativeModel(best_model_name)
+                    
                     response = model.generate_content(PROMPT_METADATA + f"\n\nTEXTO:\n{text_preview}")
                     
                     json_str = response.text.replace("```json", "").replace("```", "").strip()
@@ -256,16 +272,14 @@ elif st.session_state.view_mode == "admin":
     if uploaded_file and st.button("3. 🚀 GENERAR CÓDIGO"):
         with st.spinner("Analizando documento completo..."):
             try:
-                # Buscamos modelo disponible
-                available = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
-                target_model = next((m for m in available if 'flash' in m), 'models/gemini-pro')
-                model_flash = genai.GenerativeModel(target_model)
-                
                 full_text = get_pdf_text(uploaded_file)
                 
-                # Generamos contenido con paréntesis seguros
-                res_analisis = model_flash.generate_content(PROMPT_ANALISIS + "\nDOC:\n" + full_text).text
-                res_info = model_flash.generate_content(PROMPT_INFOGRAFIA + "\nDOC:\n" + full_text).text
+                # TAMBIÉN AQUÍ USAMOS find_best_model()
+                best_model_name = find_best_model()
+                model_gen = genai.GenerativeModel(best_model_name)
+                
+                res_analisis = model_gen.generate_content(PROMPT_ANALISIS + "\nDOC:\n" + full_text).text
+                res_info = model_gen.generate_content(PROMPT_INFOGRAFIA + "\nDOC:\n" + full_text).text
                 
                 safe_id = meta_titulo.replace(' ', '_').lower()[:20]
                 
