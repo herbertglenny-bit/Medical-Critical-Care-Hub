@@ -389,4 +389,302 @@ graph TD
 ---""",
         "pdf_bytes": None 
     },
+        {
+        "id": "esicm_guidelines_on_",
+        "titulo": "ESICM guidelines on circulatory shock and hemodynamic monitoring 2025",
+        "sociedad": "ESICM",
+        "especialidad": "Medicina Intensiva",
+        "anio": "2025",
+        "resumen": "Estas guías de la ESICM ofrecen recomendaciones para el diagnóstico del shock y la monitorización hemodinámica en pacientes adultos críticamente enfermos.
+Su objetivo es actualizar las prácticas y mejorar la gestión del fracaso circulatorio agudo.",
+        "url_fuente": "",
+        "analisis": """¡Excelente iniciativa! Aquí tienes el análisis estructurado de las guías ESICM 2025 sobre shock circulatorio y monitorización hemodinámica, preparado para tu sesión clínica.
+
+---
+
+# Análisis de las Guías ESICM 2025 sobre Shock Circulatorio y Monitorización Hemodinámica
+
+## 1. Ficha Técnica
+
+*   **Título Completo:** ESICM guidelines on circulatory shock and hemodynamic monitoring 2025
+*   **Autores Principales:** Xavier Monnet, Antonio Messina, Massimiliano Greco, Jan Bakker, et al. (Panel de expertos internacional)
+*   **Revista/Publicación:** Intensive Care Medicine
+*   **DOI:** https://doi.org/10.1007/s00134-025-08137-z
+*   **Fecha de Publicación:** 2025 (recibido 11 Abr 2025, aceptado 19 Sep 2025)
+*   **Sociedad/Grupo Editor:** European Society of Intensive Care Medicine (ESICM)
+*   **Objetivo Principal:** Proporcionar recomendaciones para el diagnóstico de shock y la monitorización hemodinámica en pacientes adultos críticamente enfermos.
+*   **Metodología:** Preguntas formuladas en formato PICO, enfoque GRADE para evaluar la evidencia y formular recomendaciones. En ausencia de evidencia sólida, se emitieron "declaraciones de buena práctica no graduadas" (UGPS).
+*   **Número de Declaraciones:** 50 declaraciones (incluyendo definiciones, recomendaciones graduadas y UGPS).
+*   **Población Objeto:** Pacientes adultos críticamente enfermos con shock circulatorio.
+*   **Alcance:** Limitado al diagnóstico y monitorización del shock; no aborda tratamientos farmacológicos (excepto la evaluación de respuesta a fluidos y los objetivos de presión arterial para vasopresores).
+
+---
+
+## 2. Análisis Delta (Novedades/Obsoleto)
+
+Las guías de 2025 actualizan el consenso de 2014, incorporando nueva evidencia y una visión más matizada e individualizada del manejo.
+
+### Novedades y Cambios Significativos:
+
+*   **Definición de Shock:** Se enfatiza que el shock se caracteriza por **disminución de la perfusión tisular, lo que lleva a una entrega y/o utilización inadecuada de oxígeno** para satisfacer las demandas metabólicas celulares, un matiz importante sobre la definición previa de "utilización inadecuada de oxígeno".
+*   **Monitorización de la Perfusión Regional y Oxigenación Tisular:**
+    *   **Tiempo de Relleno Capilar (TRC):** La monitorización de la perfusión cutánea mediante el TRC se **recomienda explícitamente** y puede complementarse con la temperatura cutánea y el "mottling".
+    *   **Cociente Pv-aCO2/Ca-vO2:** Se **sugiere considerar** la monitorización seriada de este cociente como marcador de metabolismo anaeróbico, una adición nueva.
+*   **Objetivos de Presión Arterial (MAP):**
+    *   **Individualización:** Se mantiene la recomendación de individualizar el objetivo de MAP, pero se añaden rangos más específicos.
+    *   **Shock Séptico:** Un MAP inicial de **65-70 mmHg** es el objetivo. Se **puede considerar un MAP más alto** en pacientes con antecedentes de hipertensión crónica o con CVP elevados que muestren mejoría clínica.
+    *   **Shock Hemorrágico Traumático (sin TBI):** Se **puede considerar objetivos de MAP más bajos** (SBP 80-90 mmHg / MAP 50-60 mmHg) hasta detener la hemorragia.
+    *   **Traumatismo Craneoencefálico (TBI):** Se **recomienda un MAP ≥ 80 mmHg**.
+    *   **Shock Cardiogénico:** Se **puede considerar un MAP inicial ≥ 65 mmHg**.
+*   **Evaluación del Riesgo de Fluidos:** Se introduce un nuevo foco en evaluar el riesgo de daño por la administración de fluidos, sugiriendo el uso de marcadores como: presiones de llenado, Presión Intra-Abdominal (PIA), Agua Pulmonar Extravascular (EVLW), Índice de Permeabilidad Vascular Pulmonar (PVPI), puntuación VExUS (Venous Excess Ultrasound), índice PaO2/FiO2 o ecografía pulmonar.
+*   **Respuesta a Fluidos:**
+    *   Se **debe evaluar la respuesta a fluidos antes de continuar** la reanimación con fluidos en pacientes con shock persistente después de la resucitación inicial.
+    *   **Prueba de Elevación Pasiva de Piernas (PLR):** Se **recomienda** para evaluar la respuesta a fluidos en pacientes ventilados (con o sin respiración espontánea).
+    *   **Prueba de Oclusión al Fin de la Espiración (EEOT):** Se **recomienda como alternativa** al PLR en pacientes ventilados sin respiración espontánea.
+    *   **Variación de la Presión de Pulso (VPP):** Se **recomienda** en ventilación mecánica sin actividad respiratoria espontánea y volúmenes corrientes ≥ 8 ml/kg, pero se **sugiere NO usarla sola** en pacientes con respiración espontánea o volumen corriente < 8 ml/kg.
+    *   **Variación del Volumen Sistólico (VVS):** Se **sugiere** en ventilación mecánica sin actividad respiratoria espontánea y volúmenes corrientes ≥ 8 ml/kg.
+    *   **Cambios en el Diámetro de la VCI:** Se **sugiere NO usarla sola** para evaluar la respuesta a fluidos.
+*   **Monitorización del Gasto Cardíaco (GC):**
+    *   El GC/Volumen Sistólico **debería monitorizarse** en pacientes que **no responden a la terapia inicial**.
+    *   Se sugiere la **reevaluación frecuente** del GC.
+    *   Cuando se monitoriza el GC, su adecuación **debe interpretarse** evaluando la función orgánica, oxigenación tisular, metabolismo y perfusión.
+    *   Se **puede considerar la termodilución transpulmonar o el catéter de arteria pulmonar (CAP)** para guiar la fluidoterapia en pacientes con shock y SDRA moderado-severo.
+    *   El **CAP** puede considerarse en pacientes con shock persistente e insuficiencia ventricular derecha (IVD) tras cirugía cardíaca.
+*   **Ecocardiografía:**
+    *   Se **sugiere su uso como modalidad de imagen de primera línea** para evaluar el tipo de shock y el estado hemodinámico, dándole un papel más prominente.
+    *   Se **deben realizar evaluaciones ecocardiográficas seriadas** para información adicional sobre la función cardíaca, incluso con GC monitorizado.
+    *   Los fenotipos de disfunción ventricular izquierda y derecha definidos ecocardiográficamente **pueden tener significado pronóstico**.
+    *   La ecocardiografía **conduce a cambios en el manejo y apoya el impacto terapéutico**.
+*   **Monitorización de la Microcirculación:** Se incluye una recomendación nueva: cuando sea factible, la evaluación de la microcirculación **puede considerarse como un complemento** a la evaluación hemodinámica integral.
+
+### Se Mantiene / Reafirma:
+
+*   **Evaluación Seriada de la Perfusión Tisular:** Para seguir la evolución del shock y evaluar la adecuación del GC y la función vascular.
+*   **Uso de Variables Dinámicas sobre Marcadores Estáticos de Precarga:** Para predecir la respuesta a fluidos.
+*   **Monitorización de la Presión Arterial:** Continuamente, y con **catéter arterial** si el shock no responde a la terapia inicial y/o requiere vasopresores.
+*   **Monitorización de la Presión Intra-Abdominal (PIA):** Se puede considerar su monitorización seriada en pacientes con factores de riesgo establecidos para hipertensión intra-abdominal.
+*   **Monitorización de la Presión Venosa Central (PVC):** Debe medirse en pacientes con catéter venoso central.
+*   **NO se recomienda un valor preespecificado de PVC como objetivo** durante la resucitación.
+
+---
+
+## 3. Algoritmo Bedside para el Manejo del Shock
+
+Este algoritmo integra las recomendaciones clave para una evaluación y manejo sistemáticos a la cabecera del paciente.
+
+```mermaid
+graph TD
+    A[Sospecha de Shock Circulatorio] --> B{Evaluación Clínica Inicial}
+    B --> B1{Signos de Hipoperfusión?}
+    B1 -- Sí --> B2{TRC prolongado, mottling, ↓ diuresis, alteración mental, lactato > 2 mmol/L?}
+    B2 -- Sí --> C[Diagnóstico de Shock Circulatorio]
+
+    C --> D{Determinación Etiológica Rápida}
+    D --> D1[Ecocardiografía como 1ª Línea]
+    D1 --> D2{Identificar tipo de shock: hipovolémico, cardiogénico, obstructivo, distributivo (o mixto)}
+
+    D2 --> E[Manejo Inicial (Primeras 1-4h)]
+    E --> E1[Establecer objetivos iniciales de MAP]
+    E1.1[Shock Séptico: MAP 65-70 mmHg]
+    E1.2[Trauma Hemorrágico (sin TBI): SBP 80-90 mmHg / MAP 50-60 mmHg (hasta control hemorragia)]
+    E1.3[Trauma (con TBI): MAP ≥ 80 mmHg]
+    E1.4[Shock Cardiogénico: MAP ≥ 65 mmHg]
+    E1 --> E2[Fluidoterapia inicial (considerar 200-500 mL en 5-10 min)]
+    E2 --> E3[Iniciar vasopresores si hipotensión persistente a pesar de fluidos]
+    E3 --> E4[Catéter arterial para monitorización continua (si no responde o usa vasopresores)]
+    E4 --> E5[Catéter venoso central (si aún no tiene) para PVC y S(c)vO2]
+
+    E --> F[Reevaluación Continua y Monitorización Avanzada]
+
+    F --> F1{Persistencia del Shock después del manejo inicial?}
+    F1 -- Sí --> G[Evaluación de Respuesta a Fluidos (antes de más fluidos)]
+    G --> G1[Variables Dinámicas Preferidas sobre Estáticas:]
+    G1.1[PLR (ventilados con/sin respiración espontánea)]
+    G1.2[EEOT (ventilados sin respiración espontánea)]
+    G1.3[VPP/VVS (ventilados sin respiración espontánea, VT ≥ 8 mL/kg)]
+    G1.4[No usar VCI sola]
+    G --> G2{¿Respuesta positiva con beneficio clínico esperado?}
+    G2 -- Sí --> H[Administrar fluidos con precaución y reevaluar]
+    G2 -- No --> I[Evitar fluidos adicionales, buscar otras estrategias]
+
+    F --> J[Monitorización de Perfusion Regional y Oxigenación Tisular]
+    J --> J1[TRC (buscar normalización)]
+    J1 --> J2[S(c)vO2 (serial)]
+    J2 --> J3[Pv-aCO2 (serial)]
+    J3 --> J4[Pv-aCO2/Ca-vO2 (considerar)]
+    J4 --> J5[Microcirculación (si factible, como adjunto)]
+
+    F --> K[Monitorización de Gasto Cardíaco y Función Cardíaca]
+    K --> K1[Monitorizar GC/Volumen Sistólico (si no responde a terapia inicial)]
+    K1 --> K2[Reevaluación frecuente del GC]
+    K2 --> K3[Ecocardiografía seriada (información estructural/funcional)]
+
+    F --> L[Evaluación de Riesgo de Fluidos / Complicaciones]
+    L --> L1[Monitorizar PIA (si factores de riesgo)]
+    L1 --> L2[Evaluar EVLW, PVPI (si disponible)]
+    L2 --> L3[Evaluar VExUS, Eco Pulmonar (B-lines)]
+    L3 --> L4[PVC (no objetivo, usar como seguridad o para gradiente de perfusión)]
+
+    H/I/J/K/L --> M[Ajuste de Terapia y Reevaluación Continua]
+    M --> F
+```
+
+**Explicación Breve del Algoritmo:**
+
+1.  **Diagnóstico Rápido:** Basado en la sospecha clínica, signos de hipoperfusión (TRC, mottling, diuresis, estado mental) y lactato.
+2.  **Etiología:** La ecocardiografía es clave y de primera línea para diferenciar los tipos de shock y guiar el manejo inicial.
+3.  **Manejo Inicial:** Establecer objetivos de MAP individualizados para el tipo de shock y las características del paciente (HTA crónica, TBI). Iniciar fluidos y vasopresores según necesidad, asegurando monitorización invasiva de PA y CVC.
+4.  **Decisión de Fluidos:** La piedra angular es evaluar la respuesta a fluidos en shock persistente *antes de seguir administrándolos*. Se priorizan las pruebas dinámicas. Crucial es sopesar el *beneficio potencial vs. el riesgo de sobrecarga*.
+5.  **Monitorización Multimodal:** No se depende de un solo parámetro. Se integran la perfusión macro (MAP, GC), micro (TRC, S(c)vO2, Pv-aCO2) y la función cardíaca (ecocardiografía).
+6.  **Riesgo de Fluidos:** Activamente buscar signos de daño por fluidos (PIA, EVLW, VExUS, ecografía pulmonar, PVC).
+7.  **Reevaluación Constante:** El manejo del shock es un proceso dinámico que requiere ajustes continuos de la terapia y reevaluaciones frecuentes de todos los parámetros.
+
+---
+
+## 4. Rincón del Residente (Learning Points / Preguntas)
+
+### Learning Points Clave:
+
+1.  **Enfoque Multimodal es Esencial:** El diagnóstico y el manejo del shock no deben basarse en un solo parámetro (ej. solo PAM o lactato). Se requiere una evaluación integrada de signos clínicos, microcirculación, macrocirculación y función cardíaca.
+2.  **El TRC Vuelve a ser Protagonista:** El tiempo de relleno capilar (TRC) es un marcador de perfusión periférica recomendado para la monitorización seriada, dado su correlación con resultados y su facilidad de uso. Es rápido y complementa otros marcadores.
+3.  **Lactato: Consecuencia, No Único Objetivo:** Si bien el lactato elevado es un signo de shock y su aclaramiento es importante, la normalización del lactato no debe ser el único objetivo de reanimación, especialmente si la perfusión periférica es normal. Una persistencia de lactato alto con microcirculación normal puede sugerir otras causas.
+4.  **Fluidoterapia Guiada por Respuesta Y Riesgo:** La evaluación de la respuesta a fluidos es obligatoria en shock persistente *antes de continuar* la administración de fluidos. Sin embargo, incluso en pacientes respondedores, el *riesgo de sobrecarga* debe sopesarse utilizando marcadores de daño (ej. EVLW, VExUS, Eco Pulmonar).
+5.  **Objetivos de PAM Individualizados:** No hay un número mágico. Los objetivos de PAM varían según el tipo de shock (séptico vs. cardiogénico vs. hemorrágico) y las características del paciente (HTA crónica, TBI). La individualización es clave para optimizar la perfusión sin aumentar el riesgo.
+6.  **Ecocardiografía: Más Allá de la Imagen:** La ecocardiografía es la modalidad de imagen de primera línea para determinar la etiología del shock y evaluar la función cardíaca y el estado de precarga. Su impacto terapéutico es significativo en la toma de decisiones.
+7.  **PVC: Una Medida de Seguridad, No de Precarga Respondedora:** La PVC debe medirse si hay un CVC, no como predictor de respuesta a fluidos, sino como indicador de precarga del ventrículo derecho y, lo más importante, como señal de riesgo de congestión venosa y daño orgánico (ej. renal, hepático), especialmente cuando es alta.
+
+### Preguntas para la Reflexión:
+
+1.  **Desafío del "No Respondedor":** Si un paciente con shock séptico, después de la reanimación inicial con fluidos y vasopresores para un MAP > 65 mmHg, no mejora sus signos de hipoperfusión (TRC prolongado, lactato alto), ¿cómo determinaríamos si se beneficia de más fluidos o si debemos buscar otras intervenciones (inotrópicos, control de la fuente)? ¿Qué herramientas usaríamos prioritariamente?
+2.  **Microcirculación sin Monitorización Avanzada:** ¿Cómo podemos integrar eficazmente la evaluación de la microcirculación en nuestra práctica diaria en una UCI sin acceso a dispositivos de visualización sublingual o termodilución transpulmonar para EVLW? ¿Qué implicaciones tiene el TRC en esta situación?
+3.  **El Rol del Eco en la Decisión Crítica:** Más allá de diagnosticar la etiología, ¿podrías dar un ejemplo concreto de cómo una evaluación ecocardiográfica seriada modificaría tu manejo en un paciente con shock cardiogénico que no responde a la terapia inicial, más allá de lo que te daría un monitoreo de GC continuo?
+4.  **Individualización de MAP en la Práctica:** Tenemos un paciente de 75 años con shock séptico y antecedentes de hipertensión crónica. ¿Cómo justificarías un objetivo de MAP de 70-75 mmHg en lugar de 65 mmHg a un residente, y qué marcadores usarías para guiar si este objetivo más alto es realmente beneficioso?
+5.  **Interpretación del Riesgo de Fluidos:** Un paciente tiene signos de respuesta a fluidos por PLR, pero también presenta un VExUS grado 2 y B-lines en la ecografía pulmonar. ¿Cómo sopesarías el potencial beneficio de los fluidos frente al riesgo en este escenario? ¿Qué estrategias de fluidoterapia o alternativas considerarías?
+
+---
+
+## 5. Incertidumbre
+
+A pesar de ser una guía exhaustiva, el panel de expertos destaca varias áreas de incertidumbre y donde la evidencia es limitada o heterogénea, lo que a menudo lleva a "declaraciones de buena práctica no graduadas" (UGPS) o "no recomendaciones".
+
+1.  **Impacto en Mortalidad de Intervenciones Específicas:**
+    *   **Monitorización del Gasto Cardíaco (GC):** No hay evidencia robusta (RCTs con potencia suficiente) que demuestre que la monitorización rutinaria del GC *per se* mejore directamente la mortalidad en pacientes con shock. Su valor se basa en el razonamiento fisiológico y en guiar terapias, no en un impacto directo en la mortalidad como *outcome* primario.
+    *   **Evaluación de la Respuesta a Fluidos:** Si bien se recomienda firmemente, no hay RCTs adecuadamente potenciados que demuestren una reducción de la mortalidad al usar la evaluación de la respuesta a fluidos versus no usarla. El beneficio se infiere de la reducción de la sobrecarga de fluidos y sus daños asociados.
+    *   **Evaluación de la Microcirculación:** La evidencia que demuestre que la reanimación guiada por la microcirculación mejora los resultados clínicos (ej. mortalidad) aún es limitada y en fase temprana.
+    *   **Ecocardiografía:** A pesar de su utilidad diagnóstica y terapéutica, la evidencia directa de que la ecocardiografía *mejora los resultados clínicos (mortalidad)* es limitada en RCTs, debido a la dificultad de realizar estudios donde la ecografía se compare con "no ecografía" en una población tan crítica.
+
+2.  **Elección del Dispositivo de Monitorización de GC:** No hay evidencia fuerte que respalde el uso de un sistema de monitorización de GC específico (ej. termodilución transpulmonar vs. CAP vs. análisis de onda de pulso menos invasivo) sobre otro en términos de impacto en la mortalidad. La elección a menudo depende de la experiencia del operador, la invasividad, el costo y la información adicional que proporciona el dispositivo (ej. EVLW del PiCCO, PAP/PvO2 del CAP).
+
+3.  **Frecuencia Óptima de Monitorización:** No se especifican criterios claros sobre la frecuencia ideal con la que deben reevaluarse los marcadores de perfusión tisular (TRC, S(c)vO2, Pv-aCO2) o el GC. Esto queda a juicio clínico, generalmente después de una intervención o ante un deterioro.
+
+4.  **Rendimiento de Pruebas Dinámicas en Contextos Específicos:**
+    *   **Mini-fluid challenge y Tidal Volume Challenge:** La evidencia aún es limitada o heterogénea para establecer recomendaciones sólidas en pacientes con shock.
+    *   **Variaciones del Diámetro de la VCI:** La guía sugiere no usarla sola debido a la falta de precisión, especialmente en pacientes con respiración espontánea o shock.
+
+5.  **Valor Pronóstico de la Disfunción Diastólica por Ecocardiografía:** La conclusión es que el panel no pudo hacer una conclusión robusta sobre el valor pronóstico de la disfunción diastólica en shock séptico debido a la heterogeneidad de las definiciones y la inconsistencia de los hallazgos.
+
+6.  **Optimización de los Objetivos de MAP:** Si bien se sugieren objetivos individualizados para poblaciones específicas (ej., HTA crónica, CVP alta), la evidencia basada en RCTs para respaldar estos objetivos *específicos* y sus umbrales óptimos para resultados orientados al paciente aún es limitada y se basa en gran medida en la fisiología y la opinión de expertos.
+
+7.  **Implementación de Marcadores de Riesgo de Fluidos:** Aunque se sugieren varios marcadores de riesgo de fluidos (VExUS, EVLW, Eco Pulmonar), faltan RCTs a gran escala que demuestren que la incorporación sistemática de estos marcadores en algoritmos de decisión de fluidoterapia mejora los resultados del paciente.
+
+---""",
+        "infografia": """# ESICM Guidelines 2025: Shock Circulatorio y Monitorización Hemodinámica
+
+---
+
+## 🚦 Semáforo de Recomendaciones Clave
+
+Aquí te presentamos una guía rápida de las prácticas en el manejo del shock circulatorio, clasificadas según el nivel de evidencia y recomendación de las guías ESICM 2025:
+
+### 🟢 Prácticas Altamente Recomendadas (Verde)
+*   **Monitorización de Perfusion Cutánea:** Realizar seguimiento serial utilizando el tiempo de llenado capilar (TLC) y complementar con temperatura cutánea y livedo reticularis.
+*   **Saturación Venosa de Oxígeno (S(c)vO2):** Medición serial en pacientes con catéter venoso central.
+*   **Diferencia Veno-Arterial de CO2 (Pv-aCO2):** Medición serial en pacientes con catéter venoso central y arterial.
+*   **Evaluación Dinámica de la Respuesta a Fluidos:** Utilizar variables dinámicas (p. ej., test de elevación pasiva de piernas - PLR, test de oclusión al final de la espiración - EEOT) sobre marcadores estáticos de precarga.
+*   **Monitorización de Presión Arterial Invasiva:** En shock no respondedor a terapia inicial y/o que requiere vasopresores.
+*   **Ecocardiografía como Primera Línea:** Para evaluar el tipo de shock y el estado hemodinámico.
+*   **Ecocardiografía y Gestión:** La ecocardiografía conduce a cambios en el manejo y apoya el impacto terapéutico.
+
+### 🟡 Prácticas Sugeridas/Consideradas (Amarillo)
+*   **Evaluación del Riesgo de Fluidos:** Considerar marcadores como presiones de llenado, PAI, EVLW, PVPI, VExUS, PaO2/FiO2 o ecografía pulmonar antes de administrar fluidos.
+*   **Monitoreo del Gasto Cardíaco (GC):** En pacientes que no responden a la terapia inicial, con reevaluación frecuente.
+*   **Considerar Pv-aCO2/Ca-vO2:** Para optimizar la reanimación cuando SvO2 y Pv-aCO2 son normales/altos.
+*   **Medición de Presión Venosa Central (PVC):** Si el paciente ya tiene un catéter venoso central (no buscar un valor objetivo específico).
+*   **Monitorización de la Presión Intraabdominal (PAI):** Serialmente en pacientes con factores de riesgo de HTA intraabdominal.
+*   **Objetivos de MAP Individualizados:** Ajustar el objetivo de presión arterial media (MAP) según el contexto clínico del paciente (p. ej., 65-70 mmHg inicial en shock séptico, mayor en HTA crónica, menor en shock hemorrágico traumático sin TBI).
+*   **Evaluaciones Ecocardiográficas Seriales:** Para información adicional sobre la función cardíaca, incluso cuando se monitoriza el GC.
+
+### 🔴 Prácticas Desaconsejadas/No Recomendadas (Rojo)
+*   **Uso de Marcadores Estáticos de Precarga Solos:** Evitar usar solo el diámetro de la VCI para predecir la respuesta a fluidos.
+*   **Variaciones de la Presión de Pulso (VPP) / Variaciones del Volumen Sistólico (VVS) con Respiración Espontánea o Volúmenes Corrientes Bajos:** No son fiables como indicadores únicos.
+*   **Objetivo de PVC Específico:** No se debe establecer un valor de PVC predefinido como objetivo durante la reanimación.
+*   **Mini-fluid challenge o Tidal Volume Challenge:** Actualmente, no hay recomendaciones debido a la escasez o heterogeneidad de datos.
+
+---
+
+## 🌊 Flujograma de Manejo del Shock Circulatorio y Monitorización Hemodinámica
+
+```mermaid
+graph TD
+    A[Sospecha de Shock Circulatorio] --> B{Definición: Fallo Circulatorio Agudo, Hipoperfusión Tisular, Lactato > 2mmol/L, +/- Hipotensión};
+    B --> C[Evaluación Clínica Inicial: TLC, Gasto Urinario, Estado Mental];
+    
+    C --> D{Diagnóstico y Monitorización Inicial};
+    D -- Ecocardiografía (1ª línea) --> E[Determinar Tipo de Shock & Estado Hemodinámico];
+    D -- Presión Arterial (AP) --> F[Monitorizar AP: No Invasiva Inicial, Luego Invasiva si No Responde/Vasopresores];
+    F -- Objetivo MAP --> G[MAP Inicial 65-70 mmHg (Séptico), Individualizar];
+    
+    G --> H{Reanimación Inicial con Fluidos};
+    H -- Si hay Hipovolemia Obvia / Shock Séptico Temprano --> I[Administrar Fluidos sin Test de Respuesta Inmediato];
+    
+    I --> J{¿Shock Persistente / Inestabilidad Recurrente?};
+    J -- SÍ --> K[Evaluar Respuesta a Fluidos];
+    K -- Métodos Dinámicos RECOMENDADOS --> L[PLR, EEOT, VPP/VVS (mecánicamente ventilados, sin resp. espontánea, TV ≥ 8ml/kg)];
+    K -- Métodos a EVITAR/PRECAUCIÓN --> M[Marcadores estáticos (PVC/VCI solas), VPP/VVS con respiración espontánea/TV bajo];
+    
+    L -- Si Fluido Respondedor --> N[Pesar Riesgos vs. Beneficios de Fluidos (PAI, EVLW, VExUS)];
+    N --> O[Administrar Fluidos (200-500ml en 5-10 min)];
+    O --> P[Reevaluar Efectos: GC/Volumen Sistólico, Perfusion Tisular (TLC, Livedo, S(c)vO2, Pv-aCO2, Lactato)];
+    
+    K -- Si NO Fluido Respondedor / Riesgos Superan Beneficios --> Q[Considerar otras Intervenciones: Vasopresores, Inotrópicos];
+    
+    Q -- GC/Volumen Sistólico --> R[Monitorizar GC/VS en No Respondedores (TPTD, PAC, u otros precisos). Reevaluar frecuentemente];
+    R -- Perfusion Tisular --> S[Monitorizar Serialmente: TLC, S(c)vO2, Pv-aCO2, Lactato (normalización es consecuencia, no objetivo)];
+    R -- PVC --> T[Medir si CVC presente (NO objetivo un valor específico). Interpretar con MAP (gradiente MAP-PVC)];
+    R -- PAI --> U[Monitorizar serialmente si hay factores de riesgo];
+    R -- Microcirculación --> V[Considerar como adjunto (cuando sea factible)];
+    R -- Ecocardiografía --> W[Evaluaciones seriales para función cardíaca y pronóstico];
+    
+    P --> J;
+    Q --> J;
+```
+
+---
+
+## 📊 Big Numbers del Shock Circulatorio
+
+*   **50** Declaraciones/Recomendaciones emitidas por el panel de expertos.
+*   **20-50%** Tasas de mortalidad a corto plazo en pacientes con shock.
+*   **>2 mmol/L** Nivel de lactato típicamente elevado en estados de shock.
+*   **65-70 mmHg** Objetivo inicial de Presión Arterial Media (MAP) en pacientes con shock séptico.
+*   **200-500 mL** Volumen de bolo de fluidos para un "fluid challenge", administrado en **5-10 minutos**.
+*   **~50%** Proporción de pacientes en UCI que son respondedores a fluidos.
+*   **~20%** Proporción de respondedores a fluidos en pacientes con shock séptico ya reanimados (4h después de la reanimación inicial).
+*   **>10-15%** Aumento en el Gasto Cardíaco (GC) o volumen sistólico para definir una respuesta positiva a fluidos.
+*   **0.94** Área bajo la curva (AUROC) para la Variación de la Presión de Pulso (VPP) y el Test de Elevación Pasiva de Piernas (PLR) en condiciones específicas, indicando alta precisión predictiva.
+*   **25%** Prevalencia de hipertensión intraabdominal al ingreso en UCI, aumentando a casi **50%** en la primera semana.
+*   **>10 mL/kg** Valor del Agua Pulmonar Extravascular (EVLW) que sugiere edema pulmonar.
+
+---
+
+## 📝 Mensajes Clave (Take Home Messages)
+
+1.  **Enfoque Multimodal Esencial:** El manejo efectivo del shock requiere la integración de signos clínicos, variables hemodinámicas macro y microcirculatorias, y el uso de ecocardiografía.
+2.  **Fluido Terapia Guiada por Dinamismo y Riesgo:** Priorice las pruebas dinámicas (PLR, EEOT) para evaluar la respuesta a fluidos y siempre considere los riesgos potenciales de la sobrecarga de fluidos antes de administrar bolos.
+3.  **Objetivos Individualizados:** Adapte los objetivos de presión arterial y otras variables hemodinámicas a las características y comorbilidades específicas de cada paciente, así como a su respuesta a la terapia.
+4.  **Ecocardiografía como Herramienta Fundamental:** Utilice la ecocardiografía de forma precoz y serial para diagnosticar el tipo de shock, guiar las intervenciones terapéuticas y evaluar la función cardíaca.
+5.  **Reevaluación Constante:** El estado del shock es dinámico. La monitorización continua y la reevaluación frecuente de la perfusión tisular y el gasto cardíaco son cruciales para ajustar el tratamiento.
+6.  **Microcirculación: El "Último Kilómetro":** Cuando sea factible, la evaluación de la microcirculación puede ofrecer información vital sobre la adecuación de la perfusión tisular que no es visible a través de los parámetros macrohemodinámicos.""",
+        "pdf_bytes": None 
+    },
 ]
