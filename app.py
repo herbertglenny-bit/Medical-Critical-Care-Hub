@@ -11,10 +11,9 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- CSS HACK: MODO ULTRA-WIDE (SIN MÁRGENES) ---
+# --- CSS: OPTIMIZACIÓN DE ESPACIO (SIN MÁRGENES) ---
 st.markdown("""
     <style>
-        /* Eliminar márgenes verticales y horizontales del contenedor principal */
         .block-container {
             padding-top: 1rem !important;
             padding-bottom: 0rem !important;
@@ -23,16 +22,7 @@ st.markdown("""
             margin-top: 0rem !important;
             max-width: 100% !important;
         }
-        /* Ocultar el header predeterminado de Streamlit */
         header {visibility: hidden;}
-        
-        /* Ajuste fino para móviles/tablets */
-        @media (max-width: 576px) {
-            .block-container {
-                padding-left: 0.5rem !important;
-                padding-right: 0.5rem !important;
-            }
-        }
     </style>
 """, unsafe_allow_html=True)
 
@@ -93,7 +83,7 @@ def get_pdf_text(pdf_file):
     except Exception as e:
         return None
 
-# --- INTERFAZ SIDEBAR ---
+# --- SIDEBAR ---
 with st.sidebar:
     st.image("https://cdn-icons-png.flaticon.com/512/3063/3063176.png", width=70)
     st.markdown("### Medical Critical Care Hub")
@@ -109,7 +99,7 @@ with st.sidebar:
     st.divider()
     uploaded_file = st.file_uploader("Subir Guía (PDF)", type=['pdf'])
 
-# --- LÓGICA PRINCIPAL ---
+# --- MAIN ---
 try:
     api_key = st.secrets["GOOGLE_API_KEY"]
 except:
@@ -118,7 +108,7 @@ except:
 if uploaded_file and api_key:
     genai.configure(api_key=api_key)
     
-    # --- AUTO-SELECCIÓN DE MODELO ---
+    # Auto-selección modelo
     if "target_model" not in st.session_state:
         try:
             available = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
@@ -129,13 +119,13 @@ if uploaded_file and api_key:
             elif available:
                 st.session_state.target_model = available[0]
             else:
-                st.error("No se encontraron modelos disponibles.")
+                st.error("Error buscando modelos.")
         except:
             st.session_state.target_model = 'models/gemini-pro'
 
     model = genai.GenerativeModel(st.session_state.target_model)
     
-    # Procesar PDF
+    # Procesar texto
     if "pdf_text" not in st.session_state or st.session_state.get("file_name") != uploaded_file.name:
         with st.spinner(f"Procesando..."):
             text = get_pdf_text(uploaded_file)
@@ -143,15 +133,19 @@ if uploaded_file and api_key:
             st.session_state.file_name = uploaded_file.name
             st.session_state.chat_history = []
     
-    # --- LAYOUT DE PANTALLA DIVIDIDA ---
+    # --- LAYOUT PRINCIPAL ---
     col_izq, col_der = st.columns([1, 1])
     
-    # --- COLUMNA IZQUIERDA: VISOR PDF AMPLIO ---
+    # --- COLUMNA IZQUIERDA: PDF CON ZOOM ---
     with col_izq:
-        c1, c2 = st.columns([3, 1])
+        # Barra de herramientas superior
+        c1, c2, c3 = st.columns([2, 3, 2])
         with c1:
-            st.markdown("#### 📄 Documento Original")
+            st.markdown("#### 📄 Original")
         with c2:
+            # SLIDER DE ZOOM: Permite ajustar el ancho desde 600px hasta 2000px
+            zoom_level = st.slider("🔍 Zoom / Ancho", min_value=600, max_value=2000, value=800, label_visibility="collapsed")
+        with c3:
              st.download_button(
                 label="📥 Bajar PDF",
                 data=uploaded_file.getvalue(),
@@ -160,11 +154,13 @@ if uploaded_file and api_key:
                 use_container_width=True
             )
         
-        binary_data = uploaded_file.getvalue()
-        # width=1000 fuerza al visor a ocupar todo el ancho disponible de la columna
-        pdf_viewer(input=binary_data, width=1000, height=850) 
+        # Contenedor con scroll para el PDF
+        # Si el zoom_level es mayor que el ancho de la columna, aparecerá scroll horizontal
+        with st.container(height=850, border=True):
+            binary_data = uploaded_file.getvalue()
+            pdf_viewer(input=binary_data, width=zoom_level) 
         
-    # --- COLUMNA DERECHA: IA CON SCROLL ---
+    # --- COLUMNA DERECHA: IA ---
     with col_der:
         st.markdown("#### 🤖 Análisis Inteligente")
         
