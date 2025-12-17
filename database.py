@@ -5,25 +5,30 @@ from pypdf import PdfReader
 import streamlit as st
 
 # ==========================================
-# 1. TU CLAVE AQUÍ
+# 1. CONFIGURACIÓN SEGURA (USANDO SECRETS)
 # ==========================================
-GEMINI_API_KEY = "AIzaSyBy9wai4pEyFCGQUiALSCzqYMOSj2foTjM" 
+# El código buscará la clave en la configuración de Streamlit, no aquí escrito.
+try:
+    GEMINI_API_KEY = st.secrets["GEMINI_API_KEY"]
+except:
+    # Por si acaso lo pruebas en local y no tienes secrets
+    GEMINI_API_KEY = "NO_HAY_CLAVE"
 
 CARPETA_PDFS = "." 
 
 # ==========================================
-# 2. CONEXIÓN INTELIGENTE (AUTO-SELECTOR + RETRY)
+# 2. CONEXIÓN INTELIGENTE
 # ==========================================
 ESTADO_CEREBRO = "Iniciando..."
 model = None
 
 try:
     if "AIza" not in GEMINI_API_KEY:
-        ESTADO_CEREBRO = "❌ ERROR: FALTA CLAVE"
+        ESTADO_CEREBRO = "❌ ERROR: Configura los 'Secrets' en Streamlit Cloud."
     else:
         genai.configure(api_key=GEMINI_API_KEY)
         
-        # --- RECUPERAMOS EL AUTO-SELECTOR QUE SÍ FUNCIONABA ---
+        # Auto-selector de modelo
         modelo_elegido = ""
         try:
             for m in genai.list_models():
@@ -36,7 +41,7 @@ try:
         
         if not modelo_elegido: modelo_elegido = 'gemini-pro'
 
-        print(f"✅ Modelo recuperado: {modelo_elegido}")
+        print(f"✅ Modelo: {modelo_elegido}")
         model = genai.GenerativeModel(modelo_elegido)
         ESTADO_CEREBRO = "✅ CONECTADO"
 
@@ -44,7 +49,7 @@ except Exception as e:
     ESTADO_CEREBRO = f"❌ ERROR TÉCNICO: {str(e)}"
 
 # ==========================================
-# 3. PROMPT DE INTENSIVISTA (EL BUENO)
+# 3. PROMPT INTENSIVISTA
 # ==========================================
 
 def analizar_con_ia(texto, archivo):
@@ -57,9 +62,9 @@ def analizar_con_ia(texto, archivo):
 
     PARTE 1: EL ANÁLISIS (Markdown)
     - # Ficha Técnica (Título, Año, Sociedad)
-    - # Puntos Clave (3-4 bullets con lo más importante)
-    - # Resumen Ejecutivo (De qué trata en 2 líneas)
-    - # Algoritmo Bedside (Describe los pasos de decisión clínica en lista numerada)
+    - # Puntos Clave (3-4 bullets)
+    - # Resumen Ejecutivo (2 líneas)
+    - # Algoritmo Bedside (Lista numerada paso a paso)
 
     PARTE 2: LA INFOGRAFÍA (Muy breve)
     - # Semáforo (🟢 Hacer / 🔴 Evitar)
@@ -71,8 +76,8 @@ def analizar_con_ia(texto, archivo):
     """
     
     try:
-        # Pausa de 4 segundos para evitar el error 429 (Cuota)
-        time.sleep(4) 
+        # Pausa anti-bloqueo
+        time.sleep(3) 
         response = model.generate_content(prompt)
         texto_completo = response.text
         
@@ -85,7 +90,7 @@ def analizar_con_ia(texto, archivo):
         return f"Error IA: {e}", "Error visual"
 
 # ==========================================
-# 4. MOTOR CON MEMORIA (PARA NO GASTAR SALDO)
+# 4. MOTOR CON MEMORIA
 # ==========================================
 
 @st.cache_data(show_spinner=False) 
@@ -116,13 +121,13 @@ def generar_biblioteca_automatica():
                 analisis_texto, infografia_texto = analizar_con_ia(texto_pdf, archivo)
                 resumen_texto = "Análisis IA completado."
             else:
-                analisis_texto = "PDF sin texto leíble."
+                analisis_texto = "PDF sin texto."
                 infografia_texto = "Error"
                 resumen_texto = "PDF vacío."
         else:
             analisis_texto = f"# Error\n{ESTADO_CEREBRO}"
             infografia_texto = "❌ Offline"
-            resumen_texto = "Error de conexión."
+            resumen_texto = "Configura la API Key en Secrets."
 
         item = {
             "id": archivo,
