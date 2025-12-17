@@ -5,23 +5,25 @@ from pypdf import PdfReader
 # ==========================================
 # 1. CONFIGURACIÓN DE LA IA (GEMINI)
 # ==========================================
-# Para que esto funcione de verdad, necesitas una API KEY de Google.
-# Consíguela gratis aquí: https://aistudio.google.com/app/apikey
-# Pégala dentro de las comillas de abajo.
-
+# Pega tu clave aquí abajo, dentro de las comillas.
 GEMINI_API_KEY = "AIzaSyBy9wai4pEyFCGQUiALSCzqYMOSj2foTjM" 
 
-CARPETA_PDFS = "." # Busca en la carpeta raíz
+CARPETA_PDFS = "." 
 
-# Configuramos Gemini si hay clave
+# Configuración simplificada (A prueba de fallos)
 TIENE_CEREBRO = False
-if GEMINI_API_KEY and GEMINI_API_KEY != "AIzaSyBy9wai4pEyFCGQUiALSCzqYMOSj2foTjM":
-    try:
+try:
+    # Si la clave tiene pinta de ser real (es larga), intentamos conectar
+    if len(GEMINI_API_KEY) > 20: 
         genai.configure(api_key=GEMINI_API_KEY)
-        model = genai.GenerativeModel('gemini-1.5-flash') # Modelo rápido y barato
+        model = genai.GenerativeModel('gemini-1.5-flash')
         TIENE_CEREBRO = True
-    except:
-        print("Error configurando la API de Gemini.")
+        print("✅ Cerebro de IA conectado correctamente.")
+    else:
+        print("⚠️ La clave API parece demasiado corta o no se ha puesto.")
+except Exception as e:
+    print(f"❌ Error al configurar la API: {e}")
+
 
 # ==========================================
 # 2. FUNCIONES DE LECTURA Y ANÁLISIS
