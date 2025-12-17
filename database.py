@@ -5,27 +5,37 @@ from pypdf import PdfReader
 # ==========================================
 # 1. CONFIGURACIÓN DE LA IA (GEMINI)
 # ==========================================
-# Pega tu clave aquí abajo, dentro de las comillas.
+# BORRA LO QUE HAYA ENTRE LAS COMILLAS Y PEGA TU CLAVE:
 GEMINI_API_KEY = "AIzaSyBy9wai4pEyFCGQUiALSCzqYMOSj2foTjM" 
 
 CARPETA_PDFS = "." 
 
-# Configuración simplificada (A prueba de fallos)
+# --- ZONA DE DIAGNÓSTICO ---
+print(f"--- DIAGNÓSTICO DE CLAVE ---")
+print(f"Longitud de la clave detectada: {len(GEMINI_API_KEY)}")
+if GEMINI_API_KEY.startswith("TU_CLAVE"):
+    print("❌ ERROR: Sigues teniendo el texto de ejemplo.")
+elif " " in GEMINI_API_KEY:
+    print("❌ ERROR: Hay espacios en blanco dentro de las comillas.")
+else:
+    print("✅ La clave parece correcta (formato válido).")
+print(f"----------------------------")
+
 TIENE_CEREBRO = False
 try:
-    # Si la clave tiene pinta de ser real (es larga), intentamos conectar
-    if len(GEMINI_API_KEY) > 20: 
+    if len(GEMINI_API_KEY) > 30 and not " " in GEMINI_API_KEY: 
         genai.configure(api_key=GEMINI_API_KEY)
         model = genai.GenerativeModel('gemini-1.5-flash')
         TIENE_CEREBRO = True
-        print("✅ Cerebro de IA conectado correctamente.")
+        print("🧠 CEREBRO ACTIVADO: Conexión lista.")
     else:
-        print("⚠️ La clave API parece demasiado corta o no se ha puesto.")
+        print("🧠 CEREBRO APAGADO: La clave no cumple los requisitos.")
 except Exception as e:
-    print(f"❌ Error al configurar la API: {e}")
-
+    print(f"❌ Error técnico al conectar: {e}")
 
 # ==========================================
+# A PARTIR DE AQUÍ NO TOQUES NADA
+# ==========================================# ==========================================
 # 2. FUNCIONES DE LECTURA Y ANÁLISIS
 # ==========================================
 
