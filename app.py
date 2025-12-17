@@ -57,7 +57,7 @@ with st.sidebar:
     st.caption("Althaia, Xarxa Assistencial Universitària de Manresa")
     st.divider()
     
-    # YA NO PEDIMOS LA CLAVE. Solo mostramos estado.
+    # Verificación de licencia
     if "GOOGLE_API_KEY" in st.secrets:
         st.success("✅ Licencia Activada")
     else:
@@ -67,19 +67,17 @@ with st.sidebar:
     uploaded_file = st.file_uploader("Subir Guía (PDF)", type=['pdf'])
 
 # --- LÓGICA PRINCIPAL ---
-# Intentamos recuperar la clave de la caja fuerte (Secrets)
 try:
     api_key = st.secrets["GOOGLE_API_KEY"]
 except:
-    st.warning("Por favor, configura la 'GOOGLE_API_KEY' en los Settings de Streamlit Cloud.")
     api_key = None
 
 if uploaded_file and api_key:
     try:
         genai.configure(api_key=api_key)
         
-        # Modelo 1.5 Flash (Mejor para documentos largos)
-        model = genai.GenerativeModel('gemini-1.5-flash') 
+        # CAMBIO CLAVE: Usamos 'gemini-pro' que es compatible con todo
+        model = genai.GenerativeModel('gemini-pro') 
 
         if "pdf_text" not in st.session_state or st.session_state.get("file_name") != uploaded_file.name:
             with st.spinner("Procesando documento..."):
@@ -95,16 +93,23 @@ if uploaded_file and api_key:
         with tab1:
             if st.button("Analizar Guía"):
                 with st.spinner("Generando análisis..."):
-                    prompt_completo = PROMPT_ANALISIS + "\n\nDOCUMENTO:\n" + st.session_state.pdf_text
-                    response = model.generate_content(prompt_completo)
-                    st.markdown(response.text)
+                    # Usamos try-except para manejar errores de longitud
+                    try:
+                        prompt_completo = PROMPT_ANALISIS + "\n\nDOCUMENTO:\n" + st.session_state.pdf_text
+                        response = model.generate_content(prompt_completo)
+                        st.markdown(response.text)
+                    except Exception as e:
+                        st.error(f"Error al analizar: {e}")
 
         with tab2:
             if st.button("Crear Infografía"):
                 with st.spinner("Diseñando visuales..."):
-                    prompt_completo = PROMPT_INFOGRAFIA + "\n\nDOCUMENTO:\n" + st.session_state.pdf_text
-                    response = model.generate_content(prompt_completo)
-                    st.markdown(response.text)
+                    try:
+                        prompt_completo = PROMPT_INFOGRAFIA + "\n\nDOCUMENTO:\n" + st.session_state.pdf_text
+                        response = model.generate_content(prompt_completo)
+                        st.markdown(response.text)
+                    except Exception as e:
+                        st.error(f"Error al diseñar: {e}")
 
         with tab3:
             for msg in st.session_state.chat_history:
@@ -121,4 +126,4 @@ if uploaded_file and api_key:
                 st.session_state.chat_history.append({"role": "assistant", "content": resp.text})
 
     except Exception as e:
-        st.error(f"Error detectado: {e}")
+        st.error(f"Error general: {e}")
