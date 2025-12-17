@@ -2,12 +2,12 @@ import os
 import time
 import google.generativeai as genai
 from pypdf import PdfReader
-import streamlit as st # Necesario para la memoria (caché)
+import streamlit as st
 
 # ==========================================
-# 1. TU CLAVE AQUÍ
+# 1. TU CLAVE AQUÍ (IMPORTANTE: NO BORRES LAS COMILLAS)
 # ==========================================
-GEMINI_API_KEY = "AIzaSyBy9wai4pEyFCGQUiALSCzqYMOSj2foTjM"
+GEMINI_API_KEY = "AIzaSyBy9wai4pEyFCGQUiALSCzqYMOSj2foTjM" 
 
 CARPETA_PDFS = "." 
 
@@ -18,15 +18,16 @@ ESTADO_CEREBRO = "Iniciando..."
 model = None
 
 try:
-    if "AIza" not in GEMINI_API_KEY:
-        ESTADO_CEREBRO = "❌ ERROR DE CLAVE"
+    # Verificamos que la clave no sea el texto de ejemplo
+    if "AQUI_TU_CLAVE" in GEMINI_API_KEY:
+        ESTADO_CEREBRO = "❌ ERROR: NO HAS PUESTO LA CLAVE"
     else:
         genai.configure(api_key=GEMINI_API_KEY)
-        # FORZAMOS EL MODELO 1.5 FLASH (Es el que tiene más cupo gratis)
+        # Usamos el modelo 1.5 Flash (Gratuito y rápido)
         model = genai.GenerativeModel('gemini-1.5-flash')
         ESTADO_CEREBRO = "✅ CONECTADO"
 except Exception as e:
-    ESTADO_CEREBRO = f"❌ ERROR: {str(e)}"
+    ESTADO_CEREBRO = f"❌ ERROR TÉCNICO: {str(e)}"
 
 # ==========================================
 # 3. FUNCIONES DE ANÁLISIS
@@ -58,8 +59,8 @@ def analizar_con_ia(texto, archivo):
     """
     
     try:
-        # Esperamos 4 segundos antes de llamar para no saturar (Rate Limit)
-        time.sleep(4) 
+        # Pausa de seguridad para evitar Error 429
+        time.sleep(2) 
         response = model.generate_content(prompt)
         texto_completo = response.text
         
@@ -69,14 +70,13 @@ def analizar_con_ia(texto, archivo):
         else:
             return texto_completo, "Error de formato visual."
     except Exception as e:
-        return f"Error de Cuota o IA: {e}", "Error visual"
+        return f"Error IA: {e}", "Error visual"
 
 # ==========================================
 # 4. MOTOR CON MEMORIA (CACHÉ)
 # ==========================================
 
-# Este decorador hace magia: Si ya leyó los PDFs hoy, no vuelve a gastar IA.
-@st.cache_data(show_spinner=True) 
+@st.cache_data(show_spinner=False) 
 def generar_biblioteca_automatica():
     biblioteca = []
     
@@ -94,6 +94,7 @@ def generar_biblioteca_automatica():
             
             reader = PdfReader(ruta)
             texto_pdf = ""
+            # Leemos primeras 10 páginas
             for page in reader.pages[:10]: 
                 texto_pdf += page.extract_text() or ""
         except:
@@ -102,14 +103,13 @@ def generar_biblioteca_automatica():
 
         # GENERAR CONTENIDO
         if "CONECTADO" in ESTADO_CEREBRO:
-            # Solo analizamos si hay texto
-            if len(texto_pdf) > 100:
+            if len(texto_pdf) > 50:
                 analisis_texto, infografia_texto = analizar_con_ia(texto_pdf, archivo)
                 resumen_texto = "Análisis IA completado."
             else:
-                analisis_texto = "PDF sin texto leíble (puede ser imagen)."
+                analisis_texto = "PDF sin texto leíble."
                 infografia_texto = "Error"
-                resumen_texto = "PDF vacío o imagen."
+                resumen_texto = "PDF vacío."
         else:
             analisis_texto = f"# Error\n{ESTADO_CEREBRO}"
             infografia_texto = "❌ Offline"
@@ -134,11 +134,3 @@ def generar_biblioteca_automatica():
 
 # Ejecutamos
 library = generar_biblioteca_automatica()
-¿Qué debes hacer ahora?
-Pega el código y pon tu clave.
-
-ESPERA 1 MINUTO antes de recargar la web (para que Google te perdone el castigo de "exceso de cuota").
-
-Recarga la web UNA sola vez y ten paciencia. Verás arriba a la derecha un muñequito "running" (corriendo). Déjalo pensar. Tardará unos 5-10 segundos por cada PDF que tengas.
-
-Si te vuelve a salir el error 429, significa que todavía estás "castigado" por Google. Espera un poco más y vuelve a intentarlo. Con este código nuevo (usando 1.5-flash y time.sleep), no debería volver a pasarte en el futuro.
