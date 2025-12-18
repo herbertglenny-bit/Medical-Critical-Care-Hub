@@ -1,7 +1,3 @@
-Tienes toda la razón. Es un error clásico de CSS (Estilos).
-
-Lo que está pasando es que el código tenía una regla que decía: "No importa cuánto crezcas, nunca ocupes más del 95% del ancho de la columna". Por eso, aunque el número subía (150%, 200%), la imagen se quedaba "encajada" visualmente.
-
 import streamlit as st
 import streamlit.components.v1 as components
 
