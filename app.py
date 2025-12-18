@@ -1,24 +1,19 @@
 import streamlit as st
 import streamlit.components.v1 as components
 
-# Configuración de página (Wide mode)
+# Configuración de página
 st.set_page_config(page_title="Estación Médica IA", layout="wide")
 
 # --- ¡PEGA TU API KEY AQUÍ! ---
 API_KEY = "AIzaSyCG20t5xU50wAY-yv1oNcen5738ZqPFSag"
 # ------------------------------
 
-# CAMBIO DE ESTRATEGIA: Usamos el modelo PRO (el más potente y estándar)
-# Si este falla, es un problema de la cuenta de Google Cloud, no del código.
-MODELO_IA = "gemini-1.5-pro"
-
 html_code = f"""
 <!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Estación Médica V9</title>
+    <title>Estación Médica V10 (Auto-Fix)</title>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -43,7 +38,7 @@ html_code = f"""
             background: #525659; 
             display: flex; 
             flex-direction: column; 
-            min-width: 0; /* Vital para que el flexbox no se rompa */
+            overflow: hidden; /* El scroll lo maneja el hijo */
         }}
         
         .pdf-toolbar {{ 
@@ -51,17 +46,15 @@ html_code = f"""
             box-shadow: 0 2px 5px rgba(0,0,0,0.2); z-index: 10; flex-shrink: 0;
         }}
         
-        /* CORRECCIÓN FINAL DE SCROLL */
+        /* CORRECCIÓN FINAL DE SCROLL HORIZONTAL Y VERTICAL */
         .pdf-scroll-container {{ 
             flex: 1; 
-            /* Esto habilita las barras de desplazamiento si el hijo es más grande */
-            overflow: auto; 
+            overflow: auto; /* Barras de scroll automáticas */
             background-color: #525659;
             padding: 20px;
-            /* display block asegura que respete el overflow */
-            display: block; 
-            text-align: center;
-            position: relative;
+            display: flex; /* Flex permite centrar pero expandir */
+            flex-direction: column;
+            align-items: center; /* Centrado inicial */
         }}
         
         /* EL LIENZO DEL PDF */
@@ -69,9 +62,7 @@ html_code = f"""
             box-shadow: 0 4px 10px rgba(0,0,0,0.3); 
             background: white; 
             margin-bottom: 15px; 
-            /* Esto permite que la imagen sea ANCHA sin límites */
-            display: inline-block;
-            vertical-align: top;
+            flex-shrink: 0; /* No permitir que se encoja */
         }}
 
         /* Botones */
@@ -79,7 +70,6 @@ html_code = f"""
         button:hover {{ background: #ddd; }}
         
         .btn-download {{ background-color: #4CAF50; color: white; text-decoration: none; padding: 6px 12px; border-radius: 4px; font-size: 14px; display: none; }}
-        .btn-download:hover {{ background-color: #45a049; }}
         
         /* --- DERECHA: PESTAÑAS --- */
         .right-panel {{ width: 50%; display: flex; flex-direction: column; background: white; }}
@@ -103,12 +93,12 @@ html_code = f"""
         .msg.user {{ background: #e8f0fe; color: #185abc; align-self: flex-end; margin-left: auto; }}
         .msg.ai {{ background: #f1f3f4; align-self: flex-start; }}
         
-        .error-box {{ background: #fce8e6; color: #c5221f; padding: 15px; border-radius: 8px; border: 1px solid #f2b2ae; }}
+        .error-box {{ background: #fce8e6; color: #c5221f; padding: 15px; border-radius: 8px; border: 1px solid #f2b2ae; font-family: monospace; font-size: 0.9em; }}
     </style>
 </head>
 <body>
 
-    <div id="drop-zone">📄 ARRASTRA TU PDF AQUÍ (Modelo PRO + Scroll OK)</div>
+    <div id="drop-zone">📄 ARRASTRA TU PDF AQUÍ (V10 Auto-Detect)</div>
 
     <div class="main-container">
         <div class="pdf-section">
@@ -133,7 +123,7 @@ html_code = f"""
             <div id="tab-analisis" class="tab-content active">
                 <div id="analisis-content" class="markdown-body">
                     <p style="color: #666; text-align: center; margin-top: 50px;">
-                        Arrastra un PDF médico para comenzar.
+                        Esperando archivo...
                     </p>
                 </div>
             </div>
@@ -156,8 +146,18 @@ html_code = f"""
 
     <script>
         const API_KEY = "{API_KEY}"; 
-        // Inyectamos el modelo PRO
-        const MODEL_NAME = "{MODELO_IA}"; 
+        
+        // LISTA DE MODELOS A PROBAR (En orden de preferencia)
+        const MODEL_CANDIDATES = [
+            "gemini-1.5-flash",
+            "gemini-1.5-flash-latest",
+            "gemini-1.5-flash-001",
+            "gemini-1.5-flash-002",
+            "gemini-1.5-pro",
+            "gemini-1.5-pro-latest"
+        ];
+        
+        let WORKING_MODEL = null; // Aquí guardaremos el que funcione
 
         let pdfDoc = null;
         let scale = 1.0;
@@ -214,6 +214,14 @@ html_code = f"""
             container.innerHTML = ""; 
             document.getElementById('zoom-level').innerText = Math.round(scale * 100) + "%";
 
+            // Si el scale es muy grande, align-items: center del contenedor puede impedir scroll
+            // Así que si scale > 1, cambiamos alineación
+            if(scale > 1.0) {{
+                container.style.alignItems = "flex-start";
+            }} else {{
+                container.style.alignItems = "center";
+            }}
+
             for (let num = 1; num <= pdfDoc.numPages; num++) {{
                 const page = await pdfDoc.getPage(num);
                 const viewport = page.getViewport({{ scale: scale, rotation: rotation }});
@@ -241,13 +249,14 @@ html_code = f"""
             renderizarTodo();
         }}
 
+        // --- LÓGICA IA CON AUTO-DESCUBRIMIENTO DE MODELO ---
         async function procesarIA() {{
-            dropZone.innerText = "🤖 Analizando (Modelo Pro)...";
-            document.getElementById('analisis-content').innerHTML = "<div class='msg ai'>🧠 Gemini Pro está leyendo el documento...</div>";
-            document.getElementById('infografia-content').innerHTML = "<div class='msg ai'>🎨 Generando gráfico...</div>";
+            dropZone.innerText = "🤖 Buscando modelo compatible...";
+            document.getElementById('analisis-content').innerHTML = "<div class='msg ai'>🧠 Detectando modelo de IA disponible...</div>";
+            document.getElementById('infografia-content').innerHTML = "<div class='msg ai'>⏳ Esperando análisis...</div>";
 
             const promptAnalisis = `
-            Eres un experto médico. Analiza el PDF.
+            Actúa como experto médico. Analiza el PDF.
             Devuelve HTML limpio. Estructura:
             <h3>🏥 Título y Autores</h3>
             <h3>Objetivo</h3>
@@ -256,17 +265,53 @@ html_code = f"""
             <h3>Conclusión Clínica</h3>
             `;
             
-            const htmlAnalisis = await llamarGemini(promptAnalisis);
-            if(htmlAnalisis) document.getElementById('analisis-content').innerHTML = marked.parse(htmlAnalisis);
-
-            const promptInfo = `Crea un diagrama 'mermaid graph TD' del estudio. SOLO código.`;
-            let codigoMermaid = await llamarGemini(promptInfo);
-            if(codigoMermaid) {{
-                codigoMermaid = codigoMermaid.replace(/```mermaid/g, '').replace(/```/g, '').trim();
-                document.getElementById('infografia-content').innerHTML = `<div class="mermaid">${{codigoMermaid}}</div>`;
-                try {{ mermaid.run(); }} catch(e) {{}}
+            // INTENTAMOS LLAMAR CON LA LISTA DE CANDIDATOS
+            const htmlAnalisis = await intentarLlamadaRobusta(promptAnalisis);
+            
+            if(htmlAnalisis) {{
+                document.getElementById('analisis-content').innerHTML = marked.parse(htmlAnalisis);
+                
+                // Si funcionó, usamos el mismo modelo para la infografía
+                const promptInfo = `Crea un diagrama 'mermaid graph TD' del estudio. SOLO código.`;
+                let codigoMermaid = await llamarGemini(promptInfo, WORKING_MODEL); 
+                
+                if(codigoMermaid && !codigoMermaid.startsWith("Error")) {{
+                    codigoMermaid = codigoMermaid.replace(/```mermaid/g, '').replace(/```/g, '').trim();
+                    document.getElementById('infografia-content').innerHTML = `<div class="mermaid">${{codigoMermaid}}</div>`;
+                    try {{ mermaid.run(); }} catch(e) {{}}
+                }}
+                dropZone.innerText = "✅ Listo (Modelo: " + WORKING_MODEL + ")";
             }}
-            dropZone.innerText = "✅ Listo";
+        }}
+
+        // Esta función prueba modelos hasta que uno funcione
+        async function intentarLlamadaRobusta(prompt) {{
+            let errores = [];
+            
+            // Si ya sabemos cual funciona, úsalo directo
+            if (WORKING_MODEL) {{
+                return await llamarGemini(prompt, WORKING_MODEL);
+            }}
+
+            // Si no, probamos la lista
+            for (let modelo of MODEL_CANDIDATES) {{
+                console.log("Probando modelo:", modelo);
+                document.getElementById('analisis-content').innerHTML += `<div style='font-size:0.8em; color:grey'>Probando ${modelo}...</div>`;
+                
+                const resultado = await llamarGemini(prompt, modelo);
+                
+                if (resultado && !resultado.startsWith("Error")) {{
+                    WORKING_MODEL = modelo; // ¡Encontramos uno!
+                    return resultado;
+                }} else {{
+                    errores.push(`${modelo}: ${resultado}`);
+                }}
+            }}
+            
+            // Si llegamos aquí, ninguno funcionó
+            document.getElementById('analisis-content').innerHTML = 
+                `<div class="error-box"><b>FALLO TOTAL: Ningún modelo funcionó.</b><br>Detalles:<br>${errores.join('<br>')}</div>`;
+            return null;
         }}
 
         async function enviarMensaje() {{
@@ -278,16 +323,16 @@ html_code = f"""
             hist.innerHTML += `<div class="msg user">${{txt}}</div>`;
             input.value = "";
             
-            const respuesta = await llamarGemini(`Responde según el PDF: ${{txt}}`);
+            // Usamos intentarLlamadaRobusta por si acaso el modelo guardado falla
+            const respuesta = await intentarLlamadaRobusta(`Responde según el PDF: ${{txt}}`);
             if(respuesta) hist.innerHTML += `<div class="msg ai">${{marked.parse(respuesta)}}</div>`;
             hist.scrollTop = hist.scrollHeight;
         }}
 
-        async function llamarGemini(prompt) {{
+        async function llamarGemini(prompt, modelo) {{
             if(!globalPdfBase64) return "Error: No hay PDF.";
             
-            // Construimos la URL con el modelo PRO
-            const url = `https://generativelanguage.googleapis.com/v1beta/models/${{MODEL_NAME}}:generateContent?key=${{API_KEY}}`;
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/${{modelo}}:generateContent?key=${{API_KEY}}`;
             
             try {{
                 const response = await fetch(url, {{
@@ -305,14 +350,11 @@ html_code = f"""
                 const data = await response.json();
                 
                 if(data.error) {{
-                    document.getElementById('analisis-content').innerHTML = 
-                        `<div class="error-box"><b>Error API (${{data.error.code}}):</b> ${{data.error.message}}<br>Modelo usado: ${{MODEL_NAME}}</div>`;
-                    return null;
+                    return "Error (" + data.error.code + "): " + data.error.message;
                 }}
                 return data.candidates[0].content.parts[0].text;
             }} catch (e) {{ 
-                console.error(e);
-                return null; 
+                return "Error de Red/Fetch"; 
             }}
         }}
     </script>
