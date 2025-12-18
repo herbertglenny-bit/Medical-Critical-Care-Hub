@@ -13,7 +13,7 @@ html_template = """
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Estación Médica V12 (Diagnóstico)</title>
+    <title>Estación Médica V13 (Futuro)</title>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -44,10 +44,6 @@ html_template = """
         button:hover { background: #ddd; }
         .btn-download { background-color: #4CAF50; color: white; text-decoration: none; padding: 6px 12px; border-radius: 4px; font-size: 14px; display: none; }
         
-        /* Botón Diagnóstico */
-        .btn-diag { background-color: #2196F3; color: white; margin-left: auto; }
-        .btn-diag:hover { background-color: #0b7dda; }
-
         /* DERECHA */
         .right-panel { width: 50%; display: flex; flex-direction: column; background: white; }
         .tabs-header { display: flex; background: #f1f3f4; border-bottom: 1px solid #ccc; }
@@ -73,7 +69,7 @@ html_template = """
 </head>
 <body>
 
-    <div id="drop-zone">📄 ARRASTRA TU PDF AQUÍ (V12 + Diagnóstico)</div>
+    <div id="drop-zone">📄 ARRASTRA TU PDF AQUÍ (Modelos V2.5 Activados)</div>
 
     <div class="main-container">
         <div class="pdf-section">
@@ -82,7 +78,6 @@ html_template = """
                 <span id="zoom-level" style="min-width: 50px; text-align: center;">100%</span>
                 <button onclick="ajustarZoom(0.2)">➕ Zoom</button>
                 <button onclick="rotarPDF()">🔄 Rotar</button>
-                <button onclick="ejecutarDiagnostico()" class="btn-diag">🛠️ Ejecutar Diagnóstico</button>
                 <a id="btn-download" class="btn-download" download="documento.pdf" style="margin-left: 10px;">⬇️ Descargar</a>
             </div>
             <div id="pdf-container" class="pdf-scroll-container"></div>
@@ -98,8 +93,7 @@ html_template = """
             <div id="tab-analisis" class="tab-content active">
                 <div id="analisis-content" class="markdown-body">
                     <p style="color:#666; text-align:center; margin-top:50px;">
-                        Arrastra un PDF.<br><br>
-                        Si falla, pulsa el botón azul <b>🛠️ Ejecutar Diagnóstico</b> de arriba.
+                        Arrastra un PDF médico.
                     </p>
                 </div>
             </div>
@@ -121,12 +115,13 @@ html_template = """
     <script>
         const API_KEY = "__API_KEY_PLACEHOLDER__"; 
 
-        // AHORA INCLUIMOS LOS MODELOS ANTIGUOS (1.0)
+        // ¡AQUÍ ESTÁ LA MAGIA! USAMOS TUS MODELOS REALES
         const MODEL_CANDIDATES = [
-            "gemini-1.5-flash",
-            "gemini-1.5-pro",
-            "gemini-1.0-pro",    // <--- Nuevo candidato
-            "gemini-pro"         // <--- El clásico (casi seguro que este va)
+            "gemini-2.5-flash",          // <--- Tu modelo principal más rápido
+            "gemini-2.5-pro",            // <--- Tu modelo principal más potente
+            "gemini-2.0-flash",          // <--- Respaldo estable
+            "gemini-flash-latest",       // <--- Alias genérico
+            "gemini-pro-latest"          // <--- Alias genérico Pro
         ];
         let WORKING_MODEL = null;
 
@@ -189,44 +184,9 @@ html_template = """
         function ajustarZoom(d) { if(pdfDoc) { scale = Math.max(0.2, scale + d); renderizarTodo(); } }
         function rotarPDF() { if(pdfDoc) { rotation = (rotation + 90) % 360; renderizarTodo(); } }
 
-        // --- FUNCIÓN DE DIAGNÓSTICO (PREGUNTA A GOOGLE QUÉ MODELOS TIENES) ---
-        async function ejecutarDiagnostico() {
-            abrirPestana('tab-analisis');
-            document.getElementById('analisis-content').innerHTML = "<div class='msg ai'>🔍 Consultando a Google qué modelos permite tu llave...</div>";
-            
-            try {
-                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${API_KEY}`);
-                const data = await response.json();
-                
-                if (data.error) {
-                    document.getElementById('analisis-content').innerHTML = `<div class="error-box"><b>Error Diagnóstico:</b> ${data.error.message}</div>`;
-                    return;
-                }
-
-                let lista = "<h3>Modelos Disponibles para tu API Key:</h3><ul>";
-                let encontrados = [];
-                if (data.models) {
-                    data.models.forEach(m => {
-                        // Filtramos solo los que sirven para generar contenido
-                        if(m.supportedGenerationMethods && m.supportedGenerationMethods.includes("generateContent")) {
-                            const nombreLimpio = m.name.replace("models/", "");
-                            lista += `<li>✅ ${nombreLimpio}</li>`;
-                            encontrados.push(nombreLimpio);
-                        }
-                    });
-                }
-                lista += "</ul><p>Intenta copiar uno de estos nombres.</p>";
-                document.getElementById('analisis-content').innerHTML = lista;
-                console.log("Modelos encontrados:", encontrados);
-
-            } catch (e) {
-                document.getElementById('analisis-content').innerHTML = `<div class="error-box">Error de conexión al diagnosticar: ${e.message}</div>`;
-            }
-        }
-
         async function procesarIA() {
-            dropZone.innerText = "🤖 Buscando modelo...";
-            document.getElementById('analisis-content').innerHTML = "<div class='msg ai'>🧠 Probando modelos (Flash, Pro, 1.0)...</div>";
+            dropZone.innerText = "🤖 Analizando (V2.5)...";
+            document.getElementById('analisis-content').innerHTML = "<div class='msg ai'>🧠 Leyendo artículo con Gemini 2.5...</div>";
             
             const prompt = `Analiza este PDF médico. HTML limpio con: <h3>🏥 Título</h3> <h3>🎯 Objetivo</h3> <h3>📊 Metodología</h3> <h3>💊 Resultados Clave (Negrita)</h3> <h3>⚠️ Conclusiones</h3>`;
             
@@ -259,7 +219,7 @@ html_template = """
                     errores.push(`${modelo}: ${res}`);
                 }
             }
-            document.getElementById('analisis-content').innerHTML = `<div class="error-box"><b>Fallo Total.</b><br>Ningún modelo de la lista funcionó.<br><b>SOLUCIÓN:</b> Pulsa el botón azul 'Diagnóstico' arriba.</div>`;
+            document.getElementById('analisis-content').innerHTML = `<div class="error-box"><b>Fallo Total.</b><br>${errores.join('<br>')}</div>`;
             return null;
         }
 
