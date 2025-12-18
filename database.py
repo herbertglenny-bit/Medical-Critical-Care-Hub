@@ -1,149 +1,18 @@
-import os
-import time
-import google.generativeai as genai
-from pypdf import PdfReader
-import streamlit as st
+# database.py
+# Aquí almacenamos las guías.
+# Copia y pega aquí los bloques que generes en el panel de Administrador.
 
-# ==========================================
-# 1. CONFIGURACIÓN SEGURA (USANDO SECRETS)
-# ==========================================
-# El código buscará la clave en la configuración de Streamlit, no aquí escrito.
-try:
-    GEMINI_API_KEY = st.secrets["GEMINI_API_KEY"]
-except:
-    # Por si acaso lo pruebas en local y no tienes secrets
-    GEMINI_API_KEY = "NO_HAY_CLAVE"
-
-CARPETA_PDFS = "." 
-
-# ==========================================
-# 2. CONEXIÓN INTELIGENTE
-# ==========================================
-ESTADO_CEREBRO = "Iniciando..."
-model = None
-
-try:
-    if "AIza" not in GEMINI_API_KEY:
-        ESTADO_CEREBRO = "❌ ERROR: Configura los 'Secrets' en Streamlit Cloud."
-    else:
-        genai.configure(api_key=GEMINI_API_KEY)
-        
-        # Auto-selector de modelo
-        modelo_elegido = ""
-        try:
-            for m in genai.list_models():
-                if 'generateContent' in m.supported_generation_methods:
-                    if 'gemini' in m.name:
-                        modelo_elegido = m.name
-                        break
-        except:
-            pass
-        
-        if not modelo_elegido: modelo_elegido = 'gemini-pro'
-
-        print(f"✅ Modelo: {modelo_elegido}")
-        model = genai.GenerativeModel(modelo_elegido)
-        ESTADO_CEREBRO = "✅ CONECTADO"
-
-except Exception as e:
-    ESTADO_CEREBRO = f"❌ ERROR TÉCNICO: {str(e)}"
-
-# ==========================================
-# 3. PROMPT INTENSIVISTA
-# ==========================================
-
-def analizar_con_ia(texto, archivo):
-    if "ERROR" in ESTADO_CEREBRO:
-        return None, None
-    
-    prompt = f"""
-    Actúa como un Médico Intensivista Senior. Analiza este PDF: "{archivo}".
-    Genera una respuesta con DOS PARTES separadas por "---SEPARADOR---".
-
-    PARTE 1: EL ANÁLISIS (Markdown)
-    - # Ficha Técnica (Título, Año, Sociedad)
-    - # Puntos Clave (3-4 bullets)
-    - # Resumen Ejecutivo (2 líneas)
-    - # Algoritmo Bedside (Lista numerada paso a paso)
-
-    PARTE 2: LA INFOGRAFÍA (Muy breve)
-    - # Semáforo (🟢 Hacer / 🔴 Evitar)
-    
-    ---SEPARADOR---
-    (Aquí empieza parte 2)
-
-    TEXTO PDF: {texto[:25000]} 
-    """
-    
-    try:
-        # Pausa anti-bloqueo
-        time.sleep(3) 
-        response = model.generate_content(prompt)
-        texto_completo = response.text
-        
-        if "---SEPARADOR---" in texto_completo:
-            partes = texto_completo.split("---SEPARADOR---")
-            return partes[0].strip(), partes[1].strip()
-        else:
-            return texto_completo, "Error visual."
-    except Exception as e:
-        return f"Error IA: {e}", "Error visual"
-
-# ==========================================
-# 4. MOTOR CON MEMORIA
-# ==========================================
-
-@st.cache_data(show_spinner=False) 
-def generar_biblioteca_automatica():
-    biblioteca = []
-    
-    if not os.path.exists(CARPETA_PDFS):
-        return []
-
-    archivos = sorted([f for f in os.listdir(CARPETA_PDFS) if f.lower().endswith('.pdf')])
-
-    for archivo in archivos:
-        try:
-            ruta = os.path.join(CARPETA_PDFS, archivo)
-            with open(ruta, "rb") as f:
-                contenido_bytes = f.read()
-            
-            reader = PdfReader(ruta)
-            texto_pdf = ""
-            for page in reader.pages[:10]: 
-                texto_pdf += page.extract_text() or ""
-        except:
-            contenido_bytes = None
-            texto_pdf = ""
-
-        if "CONECTADO" in ESTADO_CEREBRO:
-            if len(texto_pdf) > 50:
-                analisis_texto, infografia_texto = analizar_con_ia(texto_pdf, archivo)
-                resumen_texto = "Análisis IA completado."
-            else:
-                analisis_texto = "PDF sin texto."
-                infografia_texto = "Error"
-                resumen_texto = "PDF vacío."
-        else:
-            analisis_texto = f"# Error\n{ESTADO_CEREBRO}"
-            infografia_texto = "❌ Offline"
-            resumen_texto = "Configura la API Key en Secrets."
-
-        item = {
-            "id": archivo,
-            "titulo": archivo.replace(".pdf", "").replace("_", " ").title(),
-            "sociedad": "Auto",
-            "especialidad": "UCI",
-            "anio": "2024",
-            "resumen": resumen_texto,
-            "url_fuente": "",
-            "pdf_source": None,
-            "pdf_bytes": contenido_bytes,
-            "analisis": analisis_texto,
-            "infografia": infografia_texto
-        }
-        biblioteca.append(item)
-
-    return biblioteca
-
-library = generar_biblioteca_automatica()
+library = [
+    {
+        "id": "ejemplo_demo",
+        "titulo": "Guía Demo: Sepsis (Ejemplo)",
+        "sociedad": "ESICM",
+        "especialidad": "Medicina Intensiva",
+        "anio": "2024",
+        "resumen": "Guía de demostración para verificar el sistema.",
+        "url_fuente": "https://www.esicm.org",
+        "analisis": "### Ficha Técnica\n* **Estado:** Operativo.\n### Puntos Clave\n* El sistema funciona.",
+        "infografia": "### Semáforo\n🟢 **Hacer:** Usar el panel Admin.",
+        "pdf_bytes": None 
+    }
+]
