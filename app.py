@@ -1,14 +1,18 @@
-from flask import Flask, render_template
+import streamlit as st
+import streamlit.components.v1 as components
 
-# Creamos la aplicación
-app = Flask(__name__)
+# 1. Configuración básica de la página para que ocupe todo el ancho
+st.set_page_config(page_title="Estación Médica IA", layout="wide")
 
-# Esta es la ruta principal (cuando entras a la web)
-@app.route('/')
-def home():
-    # Aquí le decimos: "Busca en la carpeta templates el archivo index.html y muéstralo"
-    return render_template('index.html')
+# 2. Leemos tu archivo HTML (el diseño nuevo)
+# Asegúrate de que la ruta coincida con donde guardaste el archivo
+try:
+    with open('templates/index.html', 'r', encoding='utf-8') as f:
+        html_code = f.read()
 
-# Arrancamos el servidor
-if __name__ == '__main__':
-    app.run(debug=True, port=5000)
+    # 3. Lo mostramos en pantalla
+    # height=1000 asegura que se vea alto y scrolling=True permite bajar si es necesario
+    components.html(html_code, height=1000, scrolling=True)
+
+except FileNotFoundError:
+    st.error("No encuentro el archivo 'templates/index.html'. Revisa que la carpeta 'templates' exista y el archivo esté dentro.")
