@@ -4,12 +4,13 @@ import streamlit.components.v1 as components
 # Configuración de página (Wide mode)
 st.set_page_config(page_title="Estación Médica IA", layout="wide")
 
-# --- ¡PEGA TU API KEY AQUÍ ABAJO ENTRE LAS COMILLAS! ---
+# --- ¡PEGA TU API KEY AQUÍ! ---
 API_KEY = "AIzaSyCG20t5xU50wAY-yv1oNcen5738ZqPFSag"
-# -------------------------------------------------------
+# ------------------------------
 
-# Usamos la versión específica 001 que es la más compatible actualmente
-MODELO_IA = "gemini-1.5-flash-001"
+# CAMBIO DE ESTRATEGIA: Usamos el modelo PRO (el más potente y estándar)
+# Si este falla, es un problema de la cuenta de Google Cloud, no del código.
+MODELO_IA = "gemini-1.5-pro"
 
 html_code = f"""
 <!DOCTYPE html>
@@ -17,7 +18,7 @@ html_code = f"""
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Estación Médica V8</title>
+    <title>Estación Médica V9</title>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -36,37 +37,47 @@ html_code = f"""
         .main-container {{ display: flex; flex: 1; height: calc(100vh - 60px); }}
         
         /* --- IZQUIERDA: PDF --- */
-        .pdf-section {{ width: 50%; border-right: 1px solid #ccc; background: #525659; display: flex; flex-direction: column; }}
+        .pdf-section {{ 
+            width: 50%; 
+            border-right: 1px solid #ccc; 
+            background: #525659; 
+            display: flex; 
+            flex-direction: column; 
+            min-width: 0; /* Vital para que el flexbox no se rompa */
+        }}
         
         .pdf-toolbar {{ 
             background: #333; padding: 8px; display: flex; gap: 10px; justify-content: center; align-items: center; color: white;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.2); z-index: 10;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2); z-index: 10; flex-shrink: 0;
         }}
         
-        /* CORRECCIÓN SCROLL Y ZOOM */
+        /* CORRECCIÓN FINAL DE SCROLL */
         .pdf-scroll-container {{ 
             flex: 1; 
-            overflow: auto; /* Activa scroll vertical Y horizontal */
+            /* Esto habilita las barras de desplazamiento si el hijo es más grande */
+            overflow: auto; 
+            background-color: #525659;
             padding: 20px;
-            text-align: center; /* Centra el PDF si es pequeño */
-            display: block;
+            /* display block asegura que respete el overflow */
+            display: block; 
+            text-align: center;
+            position: relative;
         }}
         
-        /* CORRECCIÓN TAMAÑO PDF: Quitamos max-width */
+        /* EL LIENZO DEL PDF */
         .pdf-page-canvas {{ 
             box-shadow: 0 4px 10px rgba(0,0,0,0.3); 
             background: white; 
             margin-bottom: 15px; 
-            /* Importante: Permitir que crezca más allá del contenedor */
-            max-width: none !important; 
-            display: inline-block; /* Para que el text-align center funcione */
+            /* Esto permite que la imagen sea ANCHA sin límites */
+            display: inline-block;
+            vertical-align: top;
         }}
 
         /* Botones */
         button {{ cursor: pointer; padding: 6px 12px; border-radius: 4px; border: none; background: white; font-weight: bold; font-size: 14px; }}
         button:hover {{ background: #ddd; }}
         
-        /* Botón de descarga */
         .btn-download {{ background-color: #4CAF50; color: white; text-decoration: none; padding: 6px 12px; border-radius: 4px; font-size: 14px; display: none; }}
         .btn-download:hover {{ background-color: #45a049; }}
         
@@ -97,7 +108,7 @@ html_code = f"""
 </head>
 <body>
 
-    <div id="drop-zone">📄 ARRASTRA TU PDF AQUÍ (Modelo 001)</div>
+    <div id="drop-zone">📄 ARRASTRA TU PDF AQUÍ (Modelo PRO + Scroll OK)</div>
 
     <div class="main-container">
         <div class="pdf-section">
@@ -145,6 +156,7 @@ html_code = f"""
 
     <script>
         const API_KEY = "{API_KEY}"; 
+        // Inyectamos el modelo PRO
         const MODEL_NAME = "{MODELO_IA}"; 
 
         let pdfDoc = null;
@@ -154,7 +166,6 @@ html_code = f"""
 
         mermaid.initialize({{ startOnLoad: false, theme: 'neutral' }});
 
-        // --- PESTAÑAS ---
         function abrirPestana(id) {{
             document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
             document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
@@ -165,7 +176,6 @@ html_code = f"""
             if(id.includes('chat')) document.querySelectorAll('.tab-btn')[2].classList.add('active');
         }}
 
-        // --- DROP ZONE ---
         const dropZone = document.getElementById('drop-zone');
         dropZone.addEventListener('dragover', (e) => {{ e.preventDefault(); dropZone.classList.add('dragover'); }});
         dropZone.addEventListener('dragleave', () => {{ dropZone.classList.remove('dragover'); }});
@@ -178,17 +188,13 @@ html_code = f"""
                 dropZone.innerText = "⏳ Procesando...";
                 
                 const fileURL = URL.createObjectURL(file);
-                
-                // Botón descarga
                 const downloadBtn = document.getElementById('btn-download');
                 downloadBtn.href = fileURL;
                 downloadBtn.download = file.name;
                 downloadBtn.style.display = "inline-block";
 
-                // Visor
                 cargarPDF(fileURL);
 
-                // IA
                 const reader = new FileReader();
                 reader.onload = async () => {{
                     globalPdfBase64 = reader.result.split(',')[1];
@@ -198,7 +204,6 @@ html_code = f"""
             }}
         }});
 
-        // --- VISOR PDF MEJORADO ---
         async function cargarPDF(url) {{
             pdfDoc = await pdfjsLib.getDocument(url).promise;
             renderizarTodo();
@@ -226,7 +231,7 @@ html_code = f"""
 
         function ajustarZoom(delta) {{
             if(!pdfDoc) return;
-            scale = Math.max(0.2, scale + delta); // Limite mínimo 20%
+            scale = Math.max(0.2, scale + delta);
             renderizarTodo();
         }}
 
@@ -236,14 +241,13 @@ html_code = f"""
             renderizarTodo();
         }}
 
-        // --- LÓGICA IA ---
         async function procesarIA() {{
-            dropZone.innerText = "🤖 Trabajando...";
-            document.getElementById('analisis-content').innerHTML = "<div class='msg ai'>🧠 Analizando documento...</div>";
+            dropZone.innerText = "🤖 Analizando (Modelo Pro)...";
+            document.getElementById('analisis-content').innerHTML = "<div class='msg ai'>🧠 Gemini Pro está leyendo el documento...</div>";
             document.getElementById('infografia-content').innerHTML = "<div class='msg ai'>🎨 Generando gráfico...</div>";
 
             const promptAnalisis = `
-            Actúa como experto médico. Analiza el PDF.
+            Eres un experto médico. Analiza el PDF.
             Devuelve HTML limpio. Estructura:
             <h3>🏥 Título y Autores</h3>
             <h3>Objetivo</h3>
@@ -282,6 +286,7 @@ html_code = f"""
         async function llamarGemini(prompt) {{
             if(!globalPdfBase64) return "Error: No hay PDF.";
             
+            // Construimos la URL con el modelo PRO
             const url = `https://generativelanguage.googleapis.com/v1beta/models/${{MODEL_NAME}}:generateContent?key=${{API_KEY}}`;
             
             try {{
@@ -298,12 +303,17 @@ html_code = f"""
                     }})
                 }});
                 const data = await response.json();
+                
                 if(data.error) {{
-                    document.getElementById('analisis-content').innerHTML = `<div class="error-box">${{data.error.message}}</div>`;
+                    document.getElementById('analisis-content').innerHTML = 
+                        `<div class="error-box"><b>Error API (${{data.error.code}}):</b> ${{data.error.message}}<br>Modelo usado: ${{MODEL_NAME}}</div>`;
                     return null;
                 }}
                 return data.candidates[0].content.parts[0].text;
-            }} catch (e) {{ return null; }}
+            }} catch (e) {{ 
+                console.error(e);
+                return null; 
+            }}
         }}
     </script>
 </body>
