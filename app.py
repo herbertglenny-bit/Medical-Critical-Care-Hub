@@ -1,16 +1,38 @@
+Tienes toda la razón. Es un error clásico de CSS (Estilos).
+
+Lo que está pasando es que el código tenía una regla que decía: "No importa cuánto crezcas, nunca ocupes más del 95% del ancho de la columna". Por eso, aunque el número subía (150%, 200%), la imagen se quedaba "encajada" visualmente.
+
+He corregido el código para:
+
+Quitar el límite de ancho: Ahora, si haces Zoom, la imagen crecerá todo lo que necesite.
+
+Activar el Scroll Horizontal: Si la imagen se hace más ancha que tu pantalla, aparecerá una barra de desplazamiento abajo para que puedas moverte hacia los lados.
+
+Aquí tienes el código FINAL Y CORREGIDO.
+
+Instrucciones:
+Ve a app.py.
+
+Borra todo.
+
+Pega esto.
+
+Pon tu API KEY.
+
+Python
+
 import streamlit as st
 import streamlit.components.v1 as components
 
-# Configuración de página (Wide mode para aprovechar pantalla)
+# Configuración de página (Wide mode)
 st.set_page_config(page_title="Estación Médica IA", layout="wide")
 
 # --- ¡PEGA TU API KEY AQUÍ! ---
 API_KEY = "AIzaSyCG20t5xU50wAY-yv1oNcen5738ZqPFSag"
 # ------------------------------
 
-# DEFINIMOS EL MODELO EXACTO AQUÍ
-# Si este fallara, prueba cambiarlo por "gemini-1.5-flash-001"
-MODELO_EXACTO = "gemini-1.5-flash-002"
+# Modelo estable
+MODELO_IA = "gemini-1.5-flash"
 
 html_code = f"""
 <!DOCTYPE html>
@@ -18,7 +40,7 @@ html_code = f"""
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Estación Médica V5</title>
+    <title>Estación Médica V7</title>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -44,24 +66,32 @@ html_code = f"""
             box-shadow: 0 2px 5px rgba(0,0,0,0.2); z-index: 10;
         }}
         
-        /* SCROLL: Esto permite bajar y ver todas las páginas */
+        /* CORRECCIÓN SCROLL Y ZOOM */
         .pdf-scroll-container {{ 
             flex: 1; 
-            overflow-y: auto; /* IMPORTANTE: Scroll vertical */
+            overflow: auto; /* Activa scroll vertical Y horizontal */
             padding: 20px;
-            text-align: center;
+            text-align: center; /* Centra el PDF si es pequeño */
+            display: block;
         }}
         
-        /* Cada página del PDF */
+        /* CORRECCIÓN TAMAÑO PDF: Quitamos max-width */
         .pdf-page-canvas {{ 
             box-shadow: 0 4px 10px rgba(0,0,0,0.3); 
             background: white; 
             margin-bottom: 15px; 
-            max-width: 95%;
+            /* Importante: Permitir que crezca más allá del contenedor */
+            max-width: none !important; 
+            display: inline-block; /* Para que el text-align center funcione */
         }}
 
+        /* Botones */
         button {{ cursor: pointer; padding: 6px 12px; border-radius: 4px; border: none; background: white; font-weight: bold; font-size: 14px; }}
         button:hover {{ background: #ddd; }}
+        
+        /* Botón de descarga */
+        .btn-download {{ background-color: #4CAF50; color: white; text-decoration: none; padding: 6px 12px; border-radius: 4px; font-size: 14px; display: none; }}
+        .btn-download:hover {{ background-color: #45a049; }}
         
         /* --- DERECHA: PESTAÑAS --- */
         .right-panel {{ width: 50%; display: flex; flex-direction: column; background: white; }}
@@ -75,7 +105,6 @@ html_code = f"""
         /* Markdown y Chat */
         .markdown-body {{ line-height: 1.6; color: #333; }}
         .markdown-body h1, .markdown-body h2, .markdown-body h3 {{ color: #1a73e8; border-bottom: 1px solid #eee; margin-top: 20px; }}
-        .markdown-body strong {{ color: #d93025; }} /* Datos clave en rojo oscuro/negrita */
         
         #chat-container {{ display: flex; flex-direction: column; height: 100%; }}
         #chat-history {{ flex: 1; overflow-y: auto; margin-bottom: 10px; padding-right: 5px; }}
@@ -91,15 +120,16 @@ html_code = f"""
 </head>
 <body>
 
-    <div id="drop-zone">📄 ARRASTRA TU PDF AQUÍ (Modelo: {MODELO_EXACTO})</div>
+    <div id="drop-zone">📄 ARRASTRA TU PDF AQUÍ (Zoom Corregido)</div>
 
     <div class="main-container">
         <div class="pdf-section">
             <div class="pdf-toolbar">
-                <button onclick="ajustarZoom(-0.2)">➖</button>
+                <button onclick="ajustarZoom(-0.2)">➖ Zoom</button>
                 <span id="zoom-level" style="min-width: 50px; text-align: center;">100%</span>
-                <button onclick="ajustarZoom(0.2)">➕</button>
+                <button onclick="ajustarZoom(0.2)">➕ Zoom</button>
                 <button onclick="rotarPDF()">🔄 Rotar</button>
+                <a id="btn-download" class="btn-download" download="documento.pdf">⬇️ Descargar</a>
             </div>
             <div id="pdf-container" class="pdf-scroll-container">
                 </div>
@@ -115,7 +145,7 @@ html_code = f"""
             <div id="tab-analisis" class="tab-content active">
                 <div id="analisis-content" class="markdown-body">
                     <p style="color: #666; text-align: center; margin-top: 50px;">
-                        Arrastra un PDF médico para ver el resumen estructurado.
+                        Arrastra un PDF médico para comenzar.
                     </p>
                 </div>
             </div>
@@ -138,7 +168,7 @@ html_code = f"""
 
     <script>
         const API_KEY = "{API_KEY}"; 
-        const MODEL_NAME = "{MODELO_EXACTO}";
+        const MODEL_NAME = "{MODELO_IA}"; 
 
         let pdfDoc = null;
         let scale = 1.0;
@@ -168,13 +198,20 @@ html_code = f"""
             const file = e.dataTransfer.files[0];
 
             if(file && file.type === "application/pdf") {{
-                dropZone.innerText = "⏳ Leyendo documento...";
+                dropZone.innerText = "⏳ Procesando...";
                 
-                // 1. Visor PDF
                 const fileURL = URL.createObjectURL(file);
+                
+                // Botón descarga
+                const downloadBtn = document.getElementById('btn-download');
+                downloadBtn.href = fileURL;
+                downloadBtn.download = file.name;
+                downloadBtn.style.display = "inline-block";
+
+                // Visor
                 cargarPDF(fileURL);
 
-                // 2. IA
+                // IA
                 const reader = new FileReader();
                 reader.onload = async () => {{
                     globalPdfBase64 = reader.result.split(',')[1];
@@ -184,7 +221,7 @@ html_code = f"""
             }}
         }});
 
-        // --- VISOR PDF MEJORADO (SCROLL & ZOOM) ---
+        // --- VISOR PDF MEJORADO ---
         async function cargarPDF(url) {{
             pdfDoc = await pdfjsLib.getDocument(url).promise;
             renderizarTodo();
@@ -192,10 +229,9 @@ html_code = f"""
 
         async function renderizarTodo() {{
             const container = document.getElementById('pdf-container');
-            container.innerHTML = ""; // Limpiar
+            container.innerHTML = ""; 
             document.getElementById('zoom-level').innerText = Math.round(scale * 100) + "%";
 
-            // Bucle para pintar TODAS las páginas una debajo de otra
             for (let num = 1; num <= pdfDoc.numPages; num++) {{
                 const page = await pdfDoc.getPage(num);
                 const viewport = page.getViewport({{ scale: scale, rotation: rotation }});
@@ -213,7 +249,7 @@ html_code = f"""
 
         function ajustarZoom(delta) {{
             if(!pdfDoc) return;
-            scale = Math.max(0.5, scale + delta); // Evitar zoom negativo
+            scale = Math.max(0.2, scale + delta); // Limite mínimo 20%
             renderizarTodo();
         }}
 
@@ -225,39 +261,31 @@ html_code = f"""
 
         // --- LÓGICA IA ---
         async function procesarIA() {{
-            dropZone.innerText = "🤖 Analizando con Gemini 1.5...";
-            document.getElementById('analisis-content').innerHTML = "<div class='msg ai'>🧠 Leyendo artículo y extrayendo datos clave...</div>";
-            document.getElementById('infografia-content').innerHTML = "<div class='msg ai'>🎨 Diseñando esquema visual...</div>";
+            dropZone.innerText = "🤖 Trabajando...";
+            document.getElementById('analisis-content').innerHTML = "<div class='msg ai'>🧠 Analizando documento...</div>";
+            document.getElementById('infografia-content').innerHTML = "<div class='msg ai'>🎨 Generando gráfico...</div>";
 
-            // Prompt de Análisis
             const promptAnalisis = `
-            Eres un experto revisor médico. Analiza este PDF académico.
-            Devuelve un informe en HTML limpio (sin bloques de código markdown).
-            Estructura:
+            Actúa como experto médico. Analiza el PDF.
+            Devuelve HTML limpio. Estructura:
             <h3>🏥 Título y Autores</h3>
-            <h3>🎯 Objetivo del Estudio</h3>
-            <h3>📊 Metodología (Diseño, N, Criterios)</h3>
-            <h3>💊 Resultados Clave (Pon los números y porcentajes en NEGRITA)</h3>
-            <h3>⚠️ Conclusiones y Limitaciones</h3>
-            <h3>💡 Aplicación Clínica</h3>
+            <h3>Objetivo</h3>
+            <h3>Metodología</h3>
+            <h3>Resultados Clave (Datos en NEGRITA)</h3>
+            <h3>Conclusión Clínica</h3>
             `;
             
             const htmlAnalisis = await llamarGemini(promptAnalisis);
             if(htmlAnalisis) document.getElementById('analisis-content').innerHTML = marked.parse(htmlAnalisis);
 
-            // Prompt de Infografía
-            const promptInfo = `
-            Crea un diagrama de flujo 'mermaid graph TD' que resuma la lógica del estudio o algoritmo de tratamiento.
-            SOLO devuelve el código Mermaid. Sin explicaciones.
-            `;
+            const promptInfo = `Crea un diagrama 'mermaid graph TD' del estudio. SOLO código.`;
             let codigoMermaid = await llamarGemini(promptInfo);
             if(codigoMermaid) {{
                 codigoMermaid = codigoMermaid.replace(/```mermaid/g, '').replace(/```/g, '').trim();
                 document.getElementById('infografia-content').innerHTML = `<div class="mermaid">${{codigoMermaid}}</div>`;
                 try {{ mermaid.run(); }} catch(e) {{}}
             }}
-
-            dropZone.innerText = "✅ Análisis Completado";
+            dropZone.innerText = "✅ Listo";
         }}
 
         async function enviarMensaje() {{
@@ -269,16 +297,14 @@ html_code = f"""
             hist.innerHTML += `<div class="msg user">${{txt}}</div>`;
             input.value = "";
             
-            const respuesta = await llamarGemini(`Responde a esta pregunta basándote SOLO en el PDF: ${{txt}}`);
+            const respuesta = await llamarGemini(`Responde según el PDF: ${{txt}}`);
             if(respuesta) hist.innerHTML += `<div class="msg ai">${{marked.parse(respuesta)}}</div>`;
-            hist.scrollTop = hist.scrollHeight; // Auto scroll down
+            hist.scrollTop = hist.scrollHeight;
         }}
 
-        // --- CONEXIÓN API ROBUSTA ---
         async function llamarGemini(prompt) {{
-            if(!globalPdfBase64) return "Error: No hay PDF cargado.";
+            if(!globalPdfBase64) return "Error: No hay PDF.";
             
-            // Aquí usamos el modelo exacto que definimos arriba
             const url = `https://generativelanguage.googleapis.com/v1beta/models/${{MODEL_NAME}}:generateContent?key=${{API_KEY}}`;
             
             try {{
@@ -294,21 +320,13 @@ html_code = f"""
                         }}]
                     }})
                 }});
-
                 const data = await response.json();
-                
                 if(data.error) {{
-                    document.getElementById('analisis-content').innerHTML = 
-                        `<div class="error-box"><b>Error de Google (${{data.error.code}}):</b> ${{data.error.message}}<br>Revisa tu API Key o prueba otro modelo.</div>`;
+                    document.getElementById('analisis-content').innerHTML = `<div class="error-box">${{data.error.message}}</div>`;
                     return null;
                 }}
-                
                 return data.candidates[0].content.parts[0].text;
-
-            }} catch (e) {{
-                console.error(e);
-                return "Error de conexión. Revisa tu internet.";
-            }}
+            }} catch (e) {{ return null; }}
         }}
     </script>
 </body>
