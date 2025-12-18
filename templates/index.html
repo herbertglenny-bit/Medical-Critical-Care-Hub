@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Estación Médica IA - Pestañas</title>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <style>
+        /* --- ESTILOS GENERALES --- */
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0; padding: 0;
+            background-color: #f0f2f5;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        /* --- ZONA DE ARRASTRE SUPERIOR --- */
+        #drop-zone {
+            background-color: #e8f0fe;
+            border-bottom: 2px dashed #4285F4;
+            color: #1967d2;
+            padding: 10px;
+            text-align: center;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+            z-index: 20;
+        }
+        #drop-zone.dragover { background-color: #d2e3fc; padding: 20px; }
+
+        /* --- CONTENEDOR DIVIDIDO (50% - 50%) --- */
+        .main-container {
+            display: flex;
+            flex: 1;
+            height: calc(100vh - 50px); /* Restar altura aprox del header */
+        }
+
+        /* --- IZQUIERDA: VISOR PDF --- */
+        .pdf-section {
+            width: 50%;
+            border-right: 1px solid #ccc;
+            background: #525659;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
+
+        .pdf-toolbar {
+            background: #333;
+            padding: 5px;
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+        }
+
+        button.tool-btn {
+            background: #fff; border: none; padding: 4px 10px;
+            border-radius: 4px; cursor: pointer; font-size: 0.8rem;
+        }
+        button.tool-btn:hover { background: #eee; }
+
+        .iframe-wrapper {
+            flex: 1; width: 100%; height: 100%;
+            overflow: hidden; display: flex;
+            justify-content: center; align-items: center;
+        }
+        iframe { width: 100%; height: 100%; border: none; }
+
+        /* --- DERECHA: PESTAÑAS Y CONTENIDO --- */
+        .right-panel {
+            width: 50%;
+            display: flex;
+            flex-direction: column;
+            background: white;
+        }
+
+        /* BARRA DE PESTAÑAS */
+        .tabs-header {
+            display: flex;
+            background: #f1f3f4;
+            border-bottom: 1px solid #ccc;
+        }
+        .tab-btn {
+            flex: 1;
+            padding: 15px;
+            border: none;
+            background: transparent;
+            cursor: pointer;
+            font-weight: bold;
+            color: #5f6368;
+            border-bottom: 3px solid transparent;
+            transition: 0.3s;
+        }
+        .tab-btn:hover { background: #e8eaed; }
+        .tab-btn.active {
+            color: #1a73e8;
+            border-bottom: 3px solid #1a73e8;
+            background: white;
+        }
+
+        /* CONTENIDO DE LAS PESTAÑAS */
+        .tab-content {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            display: none; /* Ocultos por defecto */
+        }
+        .tab-content.active { display: block; }
+
+        /* ESTILOS INTERNOS (Markdown y Chat) */
+        .markdown-body { line-height: 1.6; color: #333; font-size: 0.95rem; }
+        .markdown-body h1, .markdown-body h2, .markdown-body h3 { color: #1a73e8; }
+        
+        /* Estilos específicos del Chat */
+        #chat-container { display: flex; flex-direction: column; height: 100%; }
+        #chat-history { flex: 1; overflow-y: auto; margin-bottom: 15px; padding-right: 10px; }
+        .chat-input-area { display: flex; gap: 10px; border-top: 1px solid #eee; padding-top: 10px; }
+        #user-input { flex: 1; padding: 10px; border: 1px solid #ccc; border-radius: 20px; outline: none; }
+        #send-btn { background: #1a73e8; color: white; border: none; padding: 10px 20px; border-radius: 20px; cursor: pointer; }
+        
+        /* Burbujas de Chat */
+        .msg { margin-bottom: 10px; padding: 10px 15px; border-radius: 15px; max-width: 80%; line-height: 1.4; }
+        .msg.user { background: #e8f0fe; color: #1967d2; align-self: flex-end; margin-left: auto; text-align: right; }
+        .msg.ai { background: #f1f3f4; color: #333; align-self: flex-start; }
+
+        /* Loader */
+        .loader { text-align: center; color: #666; margin-top: 20px; font-style: italic; }
+
+    </style>
+</head>
+<body>
+
+    <div id="drop-zone">
+        📄 Arrastra tu PDF médico aquí para iniciar el análisis automático
+    </div>
+
+    <div class="main-container">
+        
+        <div class="pdf-section">
+            <div class="pdf-toolbar">
+                <button class="tool-btn" onclick="rotarPDF()">🔄 Rotar Vista</button>
+                <a id="download-link" href="#" download="documento.pdf">
+                    <button class="tool-btn">⬇️ Descargar</button>
+                </a>
+            </div>
+            <div class="iframe-wrapper" id="iframe-container">
+                <iframe id="pdf-viewer" src=""></iframe>
+            </div>
+        </div>
+
+        <div class="right-panel">
+            <div class="tabs-header">
+                <button class="tab-btn active" onclick="abrirPestana('tab-analisis')">📝 Análisis</button>
+                <button class="tab-btn" onclick="abrirPestana('tab-infografia')">📊 Infografía</button>
+                <button class="tab-btn" onclick="abrirPestana('tab-chat')">💬 Chatbot IA</button>
+            </div>
+
+            <div id="tab-analisis" class="tab-content active">
+                <div id="analisis-content" class="markdown-body">
+                    <p>Arrastra un PDF para ver el resumen ejecutivo aquí.</p>
+                </div>
+            </div>
+
+            <div id="tab-infografia" class="tab-content">
+                <div id="infografia-content" class="markdown-body">
+                    <p>Aquí aparecerá el diagrama de flujo o esquema visual.</p>
+                </div>
+            </div>
+
+            <div id="tab-chat" class="tab-content">
+                <div id="chat-container">
+                    <div id="chat-history">
+                        <div class="msg ai">Hola. Una vez cargues el PDF, podrás preguntarme cualquier duda específica sobre él.</div>
+                    </div>
+                    <div class="chat-input-area">
+                        <input type="text" id="user-input" placeholder="Pregunta algo sobre el PDF..." onkeypress="if(event.key === 'Enter') enviarMensaje()">
+                        <button id="send-btn" onclick="enviarMensaje()">Enviar</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- CONFIGURACIÓN ---
+        const API_KEY = "AIzaSyCG20t5xU50wAY-yv1oNcen5738ZqPFSag"; // <--- ¡PEGA TU CLAVE AQUÍ!
+        
+        // Inicializar Mermaid (gráficos)
+        mermaid.initialize({ startOnLoad: false, theme: 'default' });
+
+        // Variables Globales
+        let globalPdfBase64 = null;
+        let isRotated = false;
+
+        // Elementos DOM
+        const dropZone = document.getElementById('drop-zone');
+        const pdfViewer = document.getElementById('pdf-viewer');
+        const iframeContainer = document.getElementById('iframe-container');
+        const downloadLink = document.getElementById('download-link');
+
+        // --- GESTIÓN DE PESTAÑAS ---
+        function abrirPestana(tabId) {
+            // Quitar clase active de todos los botones y contenidos
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+
+            // Activar el seleccionado
+            document.getElementById(tabId).classList.add('active');
+            
+            // Buscar el botón que corresponde a este ID (truco simple)
+            const botones = document.querySelectorAll('.tab-btn');
+            if(tabId === 'tab-analisis') botones[0].classList.add('active');
+            if(tabId === 'tab-infografia') botones[1].classList.add('active');
+            if(tabId === 'tab-chat') botones[2].classList.add('active');
+        }
+
+        // --- DRAG & DROP ---
+        dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('dragover'); });
+        dropZone.addEventListener('dragleave', () => { dropZone.classList.remove('dragover'); });
+        
+        dropZone.addEventListener('drop', async (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('dragover');
+            const file = e.dataTransfer.files[0];
+
+            if (file && file.type === "application/pdf") {
+                dropZone.innerText = "⏳ Procesando PDF... Generando análisis e infografía.";
+                
+                // 1. Cargar Visualizador
+                const fileURL = URL.createObjectURL(file);
+                pdfViewer.src = fileURL;
+                downloadLink.href = fileURL;
+                downloadLink.download = file.name;
+
+                // 2. Leer archivo a Base64
+                globalPdfBase64 = await fileToBase64(file);
+
+                // 3. Limpiar contenidos anteriores
+                document.getElementById('analisis-content').innerHTML = '<div class="loader">🧠 Analizando texto...</div>';
+                document.getElementById('infografia-content').innerHTML = '<div class="loader">🎨 Diseñando infografía...</div>';
+                document.getElementById('chat-history').innerHTML = '<div class="msg ai">PDF cargado. Pregúntame lo que quieras sobre él.</div>';
+
+                // 4. Ejecutar tareas en paralelo (Análisis + Infografía)
+                generarAnalisis();     // Llena la pestaña 1
+                generarInfografia();   // Llena la pestaña 2
+                
+                // Abrir pestaña 1 por defecto
+                abrirPestana('tab-analisis');
+
+            } else {
+                alert("Por favor, usa un archivo PDF.");
+            }
+        });
+
+        function rotarPDF() {
+            if (!isRotated) {
+                iframeContainer.style.transform = "rotate(90deg) scale(0.7)";
+                isRotated = true;
+            } else {
+                iframeContainer.style.transform = "rotate(0deg) scale(1)";
+                isRotated = false;
+            }
+        }
+
+        // --- FUNCIONES IA (GEMINI) ---
+
+        // 1. GENERAR ANÁLISIS DE TEXTO
+        async function generarAnalisis() {
+            const prompt = `
+                Analiza este artículo médico. Crea un resumen estructurado en HTML limpio (sin markdown code blocks):
+                <h3>Título y Autores</h3>
+                <ul><li>[Resumen]</li></ul>
+                <h3>Metodología</h3>
+                <p>[Detalles]</p>
+                <h3>Resultados Principales (Con datos numéricos en negrita)</h3>
+                <ul><li>...</li></ul>
+                <h3>Conclusión Clínica</h3>
+                <p>...</p>
+            `;
+            const html = await llamarGemini(prompt, globalPdfBase64);
+            document.getElementById('analisis-content').innerHTML = html;
+        }
+
+        // 2. GENERAR INFOGRAFÍA (MERMAID)
+        async function generarInfografia() {
+            const prompt = `
+                Basado en el artículo, crea un diagrama de flujo que explique el proceso del estudio o el algoritmo de tratamiento.
+                IMPORTANTE: Devuelve SOLO el código para Mermaid.js.
+                Empieza con "graph TD".
+                No incluyas explicaciones ni bloques de código markdown (\`\`\`), solo el texto del diagrama.
+            `;
+            let mermaidCode = await llamarGemini(prompt, globalPdfBase64);
+            
+            // Limpieza básica por si Gemini mete bloques de código
+            mermaidCode = mermaidCode.replace(/```mermaid/g, '').replace(/```/g, '').trim();
+
+            const container = document.getElementById('infografia-content');
+            container.innerHTML = `<div class="mermaid">${mermaidCode}</div>`;
+            
+            try {
+                await mermaid.run(); // Renderizar el gráfico
+            } catch (e) {
+                container.innerHTML += "<p style='color:red; font-size:0.8em'>Error renderizando gráfico complejo.</p>";
+            }
+        }
+
+        // 3. CHATBOT INTERACTIVO
+        async function enviarMensaje() {
+            const input = document.getElementById('user-input');
+            const texto = input.value.trim();
+            if (!texto) return;
+            if (!globalPdfBase64) { alert("Primero arrastra un PDF."); return; }
+
+            // Añadir mensaje usuario
+            const chatHistory = document.getElementById('chat-history');
+            chatHistory.innerHTML += `<div class="msg user">${texto}</div>`;
+            input.value = "";
+            chatHistory.scrollTop = chatHistory.scrollHeight;
+
+            // Mostrar "Escribiendo..."
+            const loadingId = "load-" + Date.now();
+            chatHistory.innerHTML += `<div id="${loadingId}" class="msg ai">...</div>`;
+
+            // Preguntar a Gemini con el contexto del PDF
+            const prompt = `Responde a esta pregunta del usuario basándote EXCLUSIVAMENTE en el PDF proporcionado: "${texto}". Sé breve y preciso.`;
+            const respuesta = await llamarGemini(prompt, globalPdfBase64);
+
+            // Reemplazar loader con respuesta
+            document.getElementById(loadingId).remove();
+            chatHistory.innerHTML += `<div class="msg ai">${marked.parse(respuesta)}</div>`;
+            chatHistory.scrollTop = chatHistory.scrollHeight;
+        }
+
+        // --- FUNCIÓN CENTRAL DE LLAMADA A API ---
+        async function llamarGemini(promptText, base64Data) {
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`;
+            const body = {
+                contents: [{
+                    parts: [
+                        { text: promptText },
+                        { inline_data: { mime_type: "application/pdf", data: base64Data } }
+                    ]
+                }]
+            };
+
+            try {
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body)
+                });
+                const data = await response.json();
+                return data.candidates[0].content.parts[0].text;
+            } catch (error) {
+                console.error(error);
+                return "Error al conectar con la IA.";
+            }
+        }
+
+        // Auxiliar: File a Base64
+        function fileToBase64(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result.split(',')[1]);
+                reader.onerror = reject;
+                reader.readAsDataURL(file);
+            });
+        }
+    </script>
+</body>
+</html>
