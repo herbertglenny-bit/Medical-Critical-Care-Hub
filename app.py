@@ -4,12 +4,12 @@ import streamlit.components.v1 as components
 # Configuración de página (Wide mode)
 st.set_page_config(page_title="Estación Médica IA", layout="wide")
 
-# --- ¡PEGA TU API KEY AQUÍ! ---
+# --- ¡PEGA TU API KEY AQUÍ ABAJO ENTRE LAS COMILLAS! ---
 API_KEY = "AIzaSyCG20t5xU50wAY-yv1oNcen5738ZqPFSag"
-# ------------------------------
+# -------------------------------------------------------
 
-# Modelo estable
-MODELO_IA = "gemini-1.5-flash"
+# Usamos la versión específica 001 que es la más compatible actualmente
+MODELO_IA = "gemini-1.5-flash-001"
 
 html_code = f"""
 <!DOCTYPE html>
@@ -17,7 +17,7 @@ html_code = f"""
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Estación Médica V7</title>
+    <title>Estación Médica V8</title>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -97,7 +97,7 @@ html_code = f"""
 </head>
 <body>
 
-    <div id="drop-zone">📄 ARRASTRA TU PDF AQUÍ (Zoom Corregido)</div>
+    <div id="drop-zone">📄 ARRASTRA TU PDF AQUÍ (Modelo 001)</div>
 
     <div class="main-container">
         <div class="pdf-section">
