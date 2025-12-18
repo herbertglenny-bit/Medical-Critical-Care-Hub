@@ -8,13 +8,12 @@ st.set_page_config(page_title="Estación Médica IA", layout="wide")
 API_KEY = "AIzaSyCG20t5xU50wAY-yv1oNcen5738ZqPFSag"
 # ------------------------------
 
-# NOTA: He quitado la 'f' del principio para evitar conflictos con JavaScript
 html_template = """
 <!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Estación Médica V11</title>
+    <title>Estación Médica V12 (Diagnóstico)</title>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -45,6 +44,10 @@ html_template = """
         button:hover { background: #ddd; }
         .btn-download { background-color: #4CAF50; color: white; text-decoration: none; padding: 6px 12px; border-radius: 4px; font-size: 14px; display: none; }
         
+        /* Botón Diagnóstico */
+        .btn-diag { background-color: #2196F3; color: white; margin-left: auto; }
+        .btn-diag:hover { background-color: #0b7dda; }
+
         /* DERECHA */
         .right-panel { width: 50%; display: flex; flex-direction: column; background: white; }
         .tabs-header { display: flex; background: #f1f3f4; border-bottom: 1px solid #ccc; }
@@ -56,7 +59,7 @@ html_template = """
         /* Estilos Texto */
         .markdown-body { line-height: 1.6; color: #333; }
         .markdown-body h1, .markdown-body h2, .markdown-body h3 { color: #1a73e8; border-bottom: 1px solid #eee; margin-top: 20px; }
-        .error-box { background: #fce8e6; color: #c5221f; padding: 10px; border: 1px solid #f2b2ae; font-family: monospace; }
+        .error-box { background: #fce8e6; color: #c5221f; padding: 10px; border: 1px solid #f2b2ae; font-family: monospace; font-size: 0.85em; white-space: pre-wrap; }
         
         /* Chat */
         #chat-container { display: flex; flex-direction: column; height: 100%; }
@@ -70,7 +73,7 @@ html_template = """
 </head>
 <body>
 
-    <div id="drop-zone">📄 ARRASTRA TU PDF AQUÍ (V11 Final)</div>
+    <div id="drop-zone">📄 ARRASTRA TU PDF AQUÍ (V12 + Diagnóstico)</div>
 
     <div class="main-container">
         <div class="pdf-section">
@@ -79,7 +82,8 @@ html_template = """
                 <span id="zoom-level" style="min-width: 50px; text-align: center;">100%</span>
                 <button onclick="ajustarZoom(0.2)">➕ Zoom</button>
                 <button onclick="rotarPDF()">🔄 Rotar</button>
-                <a id="btn-download" class="btn-download" download="documento.pdf">⬇️ Descargar</a>
+                <button onclick="ejecutarDiagnostico()" class="btn-diag">🛠️ Ejecutar Diagnóstico</button>
+                <a id="btn-download" class="btn-download" download="documento.pdf" style="margin-left: 10px;">⬇️ Descargar</a>
             </div>
             <div id="pdf-container" class="pdf-scroll-container"></div>
         </div>
@@ -93,7 +97,10 @@ html_template = """
             
             <div id="tab-analisis" class="tab-content active">
                 <div id="analisis-content" class="markdown-body">
-                    <p style="color:#666; text-align:center; margin-top:50px;">Esperando archivo...</p>
+                    <p style="color:#666; text-align:center; margin-top:50px;">
+                        Arrastra un PDF.<br><br>
+                        Si falla, pulsa el botón azul <b>🛠️ Ejecutar Diagnóstico</b> de arriba.
+                    </p>
                 </div>
             </div>
             <div id="tab-infografia" class="tab-content">
@@ -112,16 +119,14 @@ html_template = """
     </div>
 
     <script>
-        // INYECCIÓN DE CLAVE SEGURA
         const API_KEY = "__API_KEY_PLACEHOLDER__"; 
 
-        // Lista de modelos a probar (Auto-Detect)
+        // AHORA INCLUIMOS LOS MODELOS ANTIGUOS (1.0)
         const MODEL_CANDIDATES = [
             "gemini-1.5-flash",
-            "gemini-1.5-flash-latest",
-            "gemini-1.5-flash-001",
             "gemini-1.5-pro",
-            "gemini-1.5-pro-latest"
+            "gemini-1.0-pro",    // <--- Nuevo candidato
+            "gemini-pro"         // <--- El clásico (casi seguro que este va)
         ];
         let WORKING_MODEL = null;
 
@@ -132,7 +137,6 @@ html_template = """
             document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
             document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
             document.getElementById(id).classList.add('active');
-            // Activar botón visualmente
             if(id.includes('analisis')) document.querySelectorAll('.tab-btn')[0].classList.add('active');
             if(id.includes('infografia')) document.querySelectorAll('.tab-btn')[1].classList.add('active');
             if(id.includes('chat')) document.querySelectorAll('.tab-btn')[2].classList.add('active');
@@ -169,8 +173,6 @@ html_template = """
             const container = document.getElementById('pdf-container');
             container.innerHTML = "";
             document.getElementById('zoom-level').innerText = Math.round(scale * 100) + "%";
-            
-            // Fix alineación scroll
             container.style.alignItems = scale > 1.0 ? "flex-start" : "center";
 
             for (let num = 1; num <= pdfDoc.numPages; num++) {
@@ -187,19 +189,51 @@ html_template = """
         function ajustarZoom(d) { if(pdfDoc) { scale = Math.max(0.2, scale + d); renderizarTodo(); } }
         function rotarPDF() { if(pdfDoc) { rotation = (rotation + 90) % 360; renderizarTodo(); } }
 
-        // --- IA CON AUTO-DETECT ---
-        async function procesarIA() {
-            dropZone.innerText = "🤖 Buscando modelo IA...";
-            document.getElementById('analisis-content').innerHTML = "<div class='msg ai'>🧠 Probando conexión con Google Gemini...</div>";
+        // --- FUNCIÓN DE DIAGNÓSTICO (PREGUNTA A GOOGLE QUÉ MODELOS TIENES) ---
+        async function ejecutarDiagnostico() {
+            abrirPestana('tab-analisis');
+            document.getElementById('analisis-content').innerHTML = "<div class='msg ai'>🔍 Consultando a Google qué modelos permite tu llave...</div>";
+            
+            try {
+                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${API_KEY}`);
+                const data = await response.json();
+                
+                if (data.error) {
+                    document.getElementById('analisis-content').innerHTML = `<div class="error-box"><b>Error Diagnóstico:</b> ${data.error.message}</div>`;
+                    return;
+                }
 
+                let lista = "<h3>Modelos Disponibles para tu API Key:</h3><ul>";
+                let encontrados = [];
+                if (data.models) {
+                    data.models.forEach(m => {
+                        // Filtramos solo los que sirven para generar contenido
+                        if(m.supportedGenerationMethods && m.supportedGenerationMethods.includes("generateContent")) {
+                            const nombreLimpio = m.name.replace("models/", "");
+                            lista += `<li>✅ ${nombreLimpio}</li>`;
+                            encontrados.push(nombreLimpio);
+                        }
+                    });
+                }
+                lista += "</ul><p>Intenta copiar uno de estos nombres.</p>";
+                document.getElementById('analisis-content').innerHTML = lista;
+                console.log("Modelos encontrados:", encontrados);
+
+            } catch (e) {
+                document.getElementById('analisis-content').innerHTML = `<div class="error-box">Error de conexión al diagnosticar: ${e.message}</div>`;
+            }
+        }
+
+        async function procesarIA() {
+            dropZone.innerText = "🤖 Buscando modelo...";
+            document.getElementById('analisis-content').innerHTML = "<div class='msg ai'>🧠 Probando modelos (Flash, Pro, 1.0)...</div>";
+            
             const prompt = `Analiza este PDF médico. HTML limpio con: <h3>🏥 Título</h3> <h3>🎯 Objetivo</h3> <h3>📊 Metodología</h3> <h3>💊 Resultados Clave (Negrita)</h3> <h3>⚠️ Conclusiones</h3>`;
             
             const html = await intentarLlamadaRobusta(prompt);
             
             if(html) {
                 document.getElementById('analisis-content').innerHTML = marked.parse(html);
-                
-                // Infografía
                 document.getElementById('infografia-content').innerHTML = "<div class='msg ai'>Generando gráfico...</div>";
                 let mermaidCode = await llamarGemini(`Crea un diagrama mermaid graph TD del estudio. SOLO CÓDIGO.`, WORKING_MODEL);
                 if(mermaidCode && !mermaidCode.startsWith("Error")) {
@@ -213,12 +247,10 @@ html_template = """
 
         async function intentarLlamadaRobusta(prompt) {
             if (WORKING_MODEL) return await llamarGemini(prompt, WORKING_MODEL);
-            
             let errores = [];
+            
             for (let modelo of MODEL_CANDIDATES) {
-                // Ahora esto es JavaScript puro, no Python, así que no falla
                 console.log(`Probando ${modelo}...`);
-                
                 const res = await llamarGemini(prompt, modelo);
                 if (res && !res.startsWith("Error")) {
                     WORKING_MODEL = modelo;
@@ -227,7 +259,7 @@ html_template = """
                     errores.push(`${modelo}: ${res}`);
                 }
             }
-            document.getElementById('analisis-content').innerHTML = `<div class="error-box"><b>Fallo Total:</b><br>${errores.join('<br>')}</div>`;
+            document.getElementById('analisis-content').innerHTML = `<div class="error-box"><b>Fallo Total.</b><br>Ningún modelo de la lista funcionó.<br><b>SOLUCIÓN:</b> Pulsa el botón azul 'Diagnóstico' arriba.</div>`;
             return null;
         }
 
@@ -257,8 +289,5 @@ html_template = """
 </html>
 """
 
-# AQUÍ HACEMOS LA SUSTITUCIÓN SEGURA DE LA CLAVE
-# Esto evita que Python intente leer el código JavaScript
 final_html = html_template.replace("__API_KEY_PLACEHOLDER__", API_KEY)
-
 components.html(final_html, height=1000, scrolling=True)
