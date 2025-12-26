@@ -4,20 +4,20 @@ import streamlit.components.v1 as components
 # Configuración de página
 st.set_page_config(page_title="Estación Médica IA", layout="wide")
 
-# --- SEGURIDAD: LEEMOS LA CLAVE DESDE LOS SECRETOS ---
+# --- SEGURIDAD ---
 try:
     API_KEY = st.secrets["GEMINI_API_KEY"]
 except (FileNotFoundError, KeyError):
     st.error("⚠️ Error: No encuentro 'GEMINI_API_KEY' en los Secrets de Streamlit.")
     st.stop()
-# -----------------------------------------------------
+# -----------------
 
 html_template = """
 <!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Estación Médica V20</title>
+    <title>Estación Médica V21 (NanoBanana)</title>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -46,14 +46,14 @@ html_template = """
         .tab-content { flex: 1; padding: 25px; overflow-y: auto; display: none; }
         .tab-content.active { display: block; }
 
-        /* Estilos Markdown Clínico */
+        /* Estilos Markdown y Paneles */
         .markdown-body { line-height: 1.6; color: #333; font-size: 0.95rem; }
         .markdown-body h1, .markdown-body h2 { color: #1a73e8; border-bottom: 2px solid #eee; margin-top: 25px; padding-bottom: 5px; }
-        .markdown-body h3 { color: #202124; font-weight: bold; margin-top: 20px; text-transform: uppercase; font-size: 0.9rem; letter-spacing: 0.5px; }
-        .markdown-body ul { padding-left: 20px; }
-        .markdown-body li { margin-bottom: 6px; }
+        .markdown-body h3 { color: #202124; font-weight: bold; margin-top: 20px; text-transform: uppercase; font-size: 0.9rem; }
         .markdown-body strong { color: #d93025; font-weight: 700; } 
-        .markdown-body blockquote { border-left: 4px solid #1a73e8; padding-left: 10px; color: #555; background: #f8f9fa; }
+        
+        /* Estilos Específicos para Infografía (Sección 4 Big Numbers) */
+        .big-number { font-size: 1.5em; color: #1a73e8; font-weight: bold; display: block; margin-top: 10px; }
 
         /* Chat */
         #chat-container { display: flex; flex-direction: column; height: 100%; }
@@ -71,7 +71,7 @@ html_template = """
 </head>
 <body>
 
-    <div id="drop-zone">📄 ARRASTRA GPC (Análisis Técnico)</div>
+    <div id="drop-zone">📄 ARRASTRA GPC (V21: NanoBanana)</div>
 
     <div class="main-container">
         <div class="pdf-section">
@@ -88,14 +88,14 @@ html_template = """
         <div class="right-panel">
             <div class="tabs-header">
                 <button class="tab-btn active" onclick="abrirPestana('tab-analisis')">📝 Análisis Técnico</button>
-                <button class="tab-btn" onclick="abrirPestana('tab-infografia')">📊 Algoritmo</button>
+                <button class="tab-btn" onclick="abrirPestana('tab-infografia')">🎨 Infografía</button>
                 <button class="tab-btn" onclick="abrirPestana('tab-chat')">💬 Discusión</button>
             </div>
             
             <div id="tab-analisis" class="tab-content active">
                 <div id="analisis-content" class="markdown-body">
                     <p style="color:#666; text-align:center; margin-top:50px;">
-                        Sistema de Análisis de Guías Clínicas.<br>Sube un documento para iniciar.
+                        Sistema listo.<br>Sube una GPC para comenzar.
                     </p>
                 </div>
             </div>
@@ -117,7 +117,9 @@ html_template = """
     <script>
         const API_KEY = "__API_KEY_PLACEHOLDER__"; 
 
+        // PRIORIZAMOS NANOBANANA PARA LA INFOGRAFÍA
         const MODEL_CANDIDATES = [
+            "nano-banana-pro-preview", // El que has pedido
             "gemini-2.0-flash", 
             "gemini-2.5-flash", 
             "gemini-1.5-pro",
@@ -145,7 +147,7 @@ html_template = """
             e.preventDefault(); dropZone.classList.remove('dragover');
             const file = e.dataTransfer.files[0];
             if(file && file.type === "application/pdf") {
-                dropZone.innerText = "⏳ Extrayendo datos...";
+                dropZone.innerText = "⏳ Procesando (NanoBanana)...";
                 const fileURL = URL.createObjectURL(file);
                 const db = document.getElementById('btn-download');
                 db.href = fileURL; db.download = file.name; db.style.display = "inline-block";
@@ -197,74 +199,85 @@ html_template = """
         }
 
         async function procesarIA() {
-            dropZone.innerText = "🤖 Analizando...";
-            document.getElementById('analisis-content').innerHTML = "<div class='msg ai'>🧠 <b>Realizando análisis técnico profundo...</b><br>Identificando criterios, targets y evidencia GRADE...</div>";
+            // --- FASE 1: ANÁLISIS TÉCNICO (Pestaña 1) ---
+            dropZone.innerText = "🤖 Análisis Técnico...";
+            document.getElementById('analisis-content').innerHTML = "<div class='msg ai'>🧠 Diseccionando guía...</div>";
             
-            // --- PROMPT MODIFICADO SEGÚN TU PETICIÓN ---
-            const prompt = `
+            const promptAnalisis = `
             # OBJETIVO
             Destacando aspectos de Medicina Intensiva y Medicina Basada en la Evidencia. Realiza una disección técnica exhaustiva de la Guía de Práctica Clínica proporcionada.
-
-            # TONO Y ESTILO
-            * **Estrictamente profesional, neutro y académico.**
-            * **NO** actúes como un personaje (Jefe de Servicio, etc.).
-            * **NO** uses saludos ("Hola colegas"), ni despedidas ("Un saludo").
-            * Ve directo a la información técnica.
-
             # ESTRUCTURA OBLIGATORIA (MARKDOWN)
-            Analiza el documento y estructura la respuesta en los siguientes módulos:
-
-            ## 1. Definiciones, Criterios y Fenotipos
-            * **Nuevos Criterios Diagnósticos:** Cambios en umbrales/definiciones (ej. Sepsis-3, Berlín).
-            * **Fenotipos/Subgrupos:** Subgrupos que requieran manejo diferenciado.
-            * **Scores y Escalas:** Escalas recomendadas explícitamente.
-
-            ## 2. Algoritmo de Manejo en Fase Aguda
-            * **Metas ("Targets") Inmediatas:** Objetivos hemodinámicos (TAM, Lactato), respiratorios, etc.
-            * **Primera Línea de Tratamiento:** Intervenciones "Gold Standard" (< 6h).
-            * **Dosis y Posología:** Tablas de dosificación, ajustes y tiempos.
-
-            ## 3. Soporte Vital y Procedimientos
-            * **Soporte Ventilatorio:** Modos, PEEP, prono, bloqueo NM.
-            * **Soporte Hemodinámico:** Vasopresores/inotrópicos, fluidos, monitorización.
-            * **Terapias de Rescate/ECMO:** Criterios de indicación/contraindicación.
-
-            ## 4. Semáforo de Evidencia (Cambios de Práctica)
-            * 🔴 **STOP (No hacer):** Intervenciones desaconsejadas/dañinas.
-            * 🟡 **Áreas Grises:** Evidencia débil/individualizar.
-            * 🟢 **GO (Nuevos Estándares):** Recomendaciones fuertes.
-
-            ## 5. Poblaciones Especiales
-            * Recomendaciones para: Fallo Renal, Obesidad, Anciano, Inmunosupresión, etc.
-
-            ## 6. Criterios de Ingreso y Alta
-            * Admisión, Weaning, Desescalada y Limitación del Esfuerzo Terapéutico (LET).
-
-            ---
-            **Instrucciones de formato:**
-            * Usa **negritas** para cifras y fármacos.
-            * Cita tablas/figuras del original si es relevante.
+            1. Definiciones, Criterios y Fenotipos
+            2. Algoritmo de Manejo en Fase Aguda (Metas, Targets, Dosis)
+            3. Soporte Vital y Procedimientos
+            4. Semáforo de Evidencia (STOP/Áreas Grises/GO)
+            5. Poblaciones Especiales
+            6. Criterios de Ingreso y Alta
+            * Usa tono profesional neutro.
             `;
             
-            let respuestaRaw = await intentarLlamadaRobusta(prompt);
-            
-            if(respuestaRaw) {
-                const textoLimpio = limpiarMarkdown(respuestaRaw);
-                document.getElementById('analisis-content').innerHTML = marked.parse(textoLimpio);
-                
-                // Infografía
-                document.getElementById('infografia-content').innerHTML = "<div class='msg ai'>Diseñando árbol de decisión clínico...</div>";
-                let mermaidRaw = await llamarGemini(`Crea un diagrama de flujo 'mermaid graph TD' detallado sobre el Algoritmo de Manejo Agudo. Usa rombos para decisiones clínicas críticas. SOLO CÓDIGO.`, WORKING_MODEL);
-                
-                if(mermaidRaw && !mermaidRaw.startsWith("Error")) {
-                    const mermaidClean = limpiarMermaid(mermaidRaw);
-                    document.getElementById('infografia-content').innerHTML = `<div class="mermaid">${mermaidClean}</div>`;
-                    try { mermaid.run(); } catch(e) { 
-                        document.getElementById('infografia-content').innerHTML += "<br><small style='color:red'>Error visualizando gráfico</small>";
-                    }
-                }
-                dropZone.innerText = "✅ Análisis Completado";
+            let resAnalisis = await intentarLlamadaRobusta(promptAnalisis);
+            if(resAnalisis) {
+                document.getElementById('analisis-content').innerHTML = marked.parse(limpiarMarkdown(resAnalisis));
             }
+
+            // --- FASE 2: INFOGRAFÍA VISUAL (Pestaña 2) ---
+            dropZone.innerText = "🎨 Creando Infografía...";
+            document.getElementById('infografia-content').innerHTML = "<div class='msg ai'>🎨 Diseñando Infografía de Alto Impacto...</div>";
+
+            const promptInfografia = `
+            # ROL
+            Actúa como un Experto en Comunicación Científica Visual y Médico Intensivista. Estructura la información de la Guía adjunta para crear una **Infografía Técnica de Alto Impacto** (One-Page Visual Summary).
+            
+            # ESTRUCTURA DE SALIDA (MARKDOWN PURO)
+            
+            ## SECCIÓN 1: Encabezado
+            * **Título Corto:**
+            * **Subtítulo:**
+            * **Etiquetas:**
+
+            ## SECCIÓN 2: El Semáforo de Cambios (Tabla)
+            (Usa una tabla Markdown con columnas: Estado, Intervención, Motivo)
+            * 🔴 STOP
+            * 🟡 PRECAUCIÓN
+            * 🟢 GO
+
+            ## SECCIÓN 4: "The Big Numbers" (Datos Clave)
+            (Extrae cifras clave: dosis, tiempos, umbrales. Ponlas en NEGRITA y separadas).
+
+            ## SECCIÓN 5: Resumen Ejecutivo
+            * **3 Mensajes Clave (Take Home Messages):**
+            * **Nivel de Evidencia Global:**
+            
+            NOTA IMPORTANTE: NO incluyas el diagrama de flujo Mermaid aquí, solo el texto estructurado.
+            `;
+
+            let resInfo = await intentarLlamadaRobusta(promptInfografia);
+            if(resInfo) {
+                // Pintamos el texto de la infografía
+                document.getElementById('infografia-content').innerHTML = marked.parse(limpiarMarkdown(resInfo));
+                
+                // --- FASE 3: EL GRÁFICO (Debajo del texto) ---
+                document.getElementById('infografia-content').innerHTML += "<hr><h3>🔄 ALGORITMO DE FLUJO (SECCIÓN 3)</h3><div id='mermaid-container'>Generando diagrama...</div>";
+                
+                const promptMermaid = `
+                Basado en la Guía, crea el código para la SECCIÓN 3: Algoritmo de Flujo.
+                Usa formato 'mermaid graph TD'.
+                * Inicio (Criterios entrada)
+                * Paso 1 (Primera línea)
+                * Paso 2 (Escalada)
+                * Paso 3 (Rescate)
+                SOLO devuelve el código Mermaid, nada de texto explicativo.
+                `;
+                
+                let resMermaid = await llamarGemini(promptMermaid, WORKING_MODEL);
+                if(resMermaid && !resMermaid.startsWith("Error")) {
+                    const cleanMermaid = limpiarMermaid(resMermaid);
+                    document.getElementById('mermaid-container').innerHTML = `<div class="mermaid">${cleanMermaid}</div>`;
+                    try { mermaid.run(); } catch(e) { }
+                }
+            }
+            dropZone.innerText = "✅ Proceso Finalizado";
         }
 
         async function intentarLlamadaRobusta(prompt) {
@@ -292,11 +305,10 @@ html_template = """
             i.value = "";
             h.scrollTop = h.scrollHeight;
 
-            const resRaw = await intentarLlamadaRobusta(`Respuesta técnica y concisa basada en la guía: ${t}`);
+            const resRaw = await intentarLlamadaRobusta(`Respuesta técnica breve: ${t}`);
             
             if(resRaw) {
-                const resLimpia = limpiarMarkdown(resRaw);
-                h.innerHTML += `<div class="msg ai">${marked.parse(resLimpia)}</div>`;
+                h.innerHTML += `<div class="msg ai">${marked.parse(limpiarMarkdown(resRaw))}</div>`;
                 h.scrollTop = h.scrollHeight;
             } else {
                 h.innerHTML += `<div class="msg ai" style="color:red">Error de conexión.</div>`;
