@@ -17,7 +17,7 @@ html_template = """
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Estación Médica V18 (Jefe de Servicio)</title>
+    <title>Estación Médica V19 (Neutro)</title>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -52,7 +52,7 @@ html_template = """
         .markdown-body h3 { color: #202124; font-weight: bold; margin-top: 20px; text-transform: uppercase; font-size: 0.9rem; letter-spacing: 0.5px; }
         .markdown-body ul { padding-left: 20px; }
         .markdown-body li { margin-bottom: 6px; }
-        .markdown-body strong { color: #d93025; font-weight: 700; } /* Datos críticos en rojo */
+        .markdown-body strong { color: #d93025; font-weight: 700; } 
         .markdown-body blockquote { border-left: 4px solid #1a73e8; padding-left: 10px; color: #555; background: #f8f9fa; }
 
         /* Chat */
@@ -71,7 +71,7 @@ html_template = """
 </head>
 <body>
 
-    <div id="drop-zone">📄 ARRASTRA GPC (Modo: Jefe de Servicio)</div>
+    <div id="drop-zone">📄 ARRASTRA GPC (Análisis Técnico)</div>
 
     <div class="main-container">
         <div class="pdf-section">
@@ -87,7 +87,7 @@ html_template = """
 
         <div class="right-panel">
             <div class="tabs-header">
-                <button class="tab-btn active" onclick="abrirPestana('tab-analisis')">📝 Análisis Avanzado</button>
+                <button class="tab-btn active" onclick="abrirPestana('tab-analisis')">📝 Análisis Técnico</button>
                 <button class="tab-btn" onclick="abrirPestana('tab-infografia')">📊 Algoritmo</button>
                 <button class="tab-btn" onclick="abrirPestana('tab-chat')">💬 Discusión</button>
             </div>
@@ -95,7 +95,7 @@ html_template = """
             <div id="tab-analisis" class="tab-content active">
                 <div id="analisis-content" class="markdown-body">
                     <p style="color:#666; text-align:center; margin-top:50px;">
-                        Sistema listo.<br>Sube una Guía de Práctica Clínica para disección técnica.
+                        Sistema de Análisis de Guías Clínicas.<br>Sube un documento para iniciar.
                     </p>
                 </div>
             </div>
@@ -106,7 +106,7 @@ html_template = """
                 <div id="chat-container">
                     <div id="chat-history"></div>
                     <div class="chat-input-area">
-                        <input type="text" id="user-input" placeholder="Consultar detalle técnico..." onkeypress="if(event.key==='Enter') enviarMensaje()">
+                        <input type="text" id="user-input" placeholder="Consulta técnica..." onkeypress="if(event.key==='Enter') enviarMensaje()">
                         <button onclick="enviarMensaje()">Enviar</button>
                     </div>
                 </div>
@@ -145,7 +145,7 @@ html_template = """
             e.preventDefault(); dropZone.classList.remove('dragover');
             const file = e.dataTransfer.files[0];
             if(file && file.type === "application/pdf") {
-                dropZone.innerText = "⏳ Diseccionando evidencia...";
+                dropZone.innerText = "⏳ Extrayendo datos...";
                 const fileURL = URL.createObjectURL(file);
                 const db = document.getElementById('btn-download');
                 db.href = fileURL; db.download = file.name; db.style.display = "inline-block";
@@ -182,7 +182,6 @@ html_template = """
         function ajustarZoom(d) { if(pdfDoc) { scale = Math.max(0.2, scale + d); renderizarTodo(); } }
         function rotarPDF() { if(pdfDoc) { rotation = (rotation + 90) % 360; renderizarTodo(); } }
 
-        // --- LIMPIEZA DE CÓDIGO ---
         function limpiarMarkdown(texto) {
             let limpio = texto.replace(/```html/gi, "").replace(/```/g, "");
             limpio = limpio.replace(/<!DOCTYPE html>/gi, "").replace(/<html>/gi, "").replace(/<\/html>/gi, "");
@@ -198,54 +197,53 @@ html_template = """
         }
 
         async function procesarIA() {
-            dropZone.innerText = "🤖 Análisis Jefe Servicio...";
-            document.getElementById('analisis-content').innerHTML = "<div class='msg ai'>🧠 <b>Iniciando disección profunda...</b><br>Extrayendo targets hemodinámicos, dosis y semáforos de evidencia...</div>";
+            dropZone.innerText = "🤖 Analizando...";
+            document.getElementById('analisis-content').innerHTML = "<div class='msg ai'>🧠 <b>Realizando análisis técnico profundo...</b><br>Identificando criterios, targets y evidencia GRADE...</div>";
             
-            // --- NUEVO PROMPT TÉCNICO AVANZADO ---
+            // --- PROMPT NEUTRO Y TÉCNICO ---
             const prompt = `
-            # ROL
-            Actúa como un Jefe de Servicio de Medicina Intensiva con subespecialización en Medicina Basada en la Evidencia. Tu objetivo es realizar una disección exhaustiva y detallada de la Guía de Práctica Clínica (GPC) proporcionada.
-
             # OBJETIVO
-            Generar un **Resumen Clínico Avanzado** dirigido exclusivamente a médicos especialistas en Cuidados Intensivos. El resumen debe ser extremadamente detallado, técnico y orientado a la resolución de problemas clínicos complejos a pie de cama. Ignora introducciones genéricas o epidemiología básica.
+            Actúa como un sistema experto de Inteligencia Artificial especializado en Medicina Intensiva y Medicina Basada en la Evidencia. Realiza una disección técnica exhaustiva de la Guía de Práctica Clínica proporcionada.
 
-            # ESTRUCTURA OBLIGATORIA DEL ANÁLISIS
-            Por favor, analiza el documento y estructura la respuesta en los siguientes módulos clínicos, usando formato MARKDOWN limpio:
+            # TONO Y ESTILO
+            * **Estrictamente profesional, neutro y académico.**
+            * **NO** actúes como un personaje (Jefe de Servicio, etc.).
+            * **NO** uses saludos ("Hola colegas"), ni despedidas ("Un saludo").
+            * Ve directo a la información técnica.
+
+            # ESTRUCTURA OBLIGATORIA (MARKDOWN)
+            Analiza el documento y estructura la respuesta en los siguientes módulos:
 
             ## 1. Definiciones, Criterios y Fenotipos
-            * **Nuevos Criterios Diagnósticos:** ¿Han cambiado los umbrales o definiciones (ej. Sepsis-3, Berlín, EOLIA)?
-            * **Fenotipos/Subgrupos:** ¿Distingue la guía subgrupos de pacientes que requieran manejo diferenciado (ej. fenotipos inflamatorios, pacientes inmunodeprimidos)?
-            * **Scores y Escalas:** ¿Qué escalas de gravedad o pronóstico recomienda calcular explícitamente?
+            * **Nuevos Criterios Diagnósticos:** Cambios en umbrales/definiciones (ej. Sepsis-3, Berlín).
+            * **Fenotipos/Subgrupos:** Subgrupos que requieran manejo diferenciado.
+            * **Scores y Escalas:** Escalas recomendadas explícitamente.
 
-            ## 2. Algoritmo de Manejo en Fase Aguda (Resucitación)
-            * **Metas ("Targets") Inmediatas:** Lista detallada de objetivos hemodinámicos (TAM, Lactato), respiratorios (SpO2, pH, Driving Pressure) o metabólicos.
-            * **Primera Línea de Tratamiento:** Fármacos o intervenciones "Gold Standard" para las primeras 6 horas.
-            * **Dosis y Posología:** Extrae tablas de dosificación, ajustes por función renal/hepática y tiempos de infusión si aparecen en el texto.
+            ## 2. Algoritmo de Manejo en Fase Aguda
+            * **Metas ("Targets") Inmediatas:** Objetivos hemodinámicos (TAM, Lactato), respiratorios, etc.
+            * **Primera Línea de Tratamiento:** Intervenciones "Gold Standard" (< 6h).
+            * **Dosis y Posología:** Tablas de dosificación, ajustes y tiempos.
 
-            ## 3. Soporte Vital y Procedimientos (El "Core" de UCI)
-            * **Soporte Ventilatorio:** Modos recomendados, titulación de PEEP, volumen corriente, indicaciones de prono o bloqueo neuromuscular.
-            * **Soporte Hemodinámico:** Elección de vasopresores/inotrópicos (primera vs. segunda línea), tipos de fluidos y monitorización.
-            * **Terapias de Rescate/ECMO:** Criterios exactos de indicación y contraindicación para terapias extracorpóreas o avanzadas.
+            ## 3. Soporte Vital y Procedimientos
+            * **Soporte Ventilatorio:** Modos, PEEP, prono, bloqueo NM.
+            * **Soporte Hemodinámico:** Vasopresores/inotrópicos, fluidos, monitorización.
+            * **Terapias de Rescate/ECMO:** Criterios de indicación/contraindicación.
 
             ## 4. Semáforo de Evidencia (Cambios de Práctica)
-            * 🔴 **STOP (No hacer):** Intervenciones que la guía desaconseja explícitamente o que han demostrado daño (muy importante).
-            * 🟡 **Áreas Grises:** Situaciones donde la evidencia es débil y la guía sugiere "individualizar" o "considerar".
-            * 🟢 **GO (Nuevos Estándares):** Recomendaciones fuertes que cambian la práctica habitual previa.
+            * 🔴 **STOP (No hacer):** Intervenciones desaconsejadas/dañinas.
+            * 🟡 **Áreas Grises:** Evidencia débil/individualizar.
+            * 🟢 **GO (Nuevos Estándares):** Recomendaciones fuertes.
 
-            ## 5. Poblaciones Especiales en UCI
-            * Detalla recomendaciones específicas para: Pacientes con Fallo Renal (CRRT), Obesidad Mórbida, Anciano frágil, Embarazo o Inmunosupresión si la guía los menciona.
+            ## 5. Poblaciones Especiales
+            * Recomendaciones para: Fallo Renal, Obesidad, Anciano, Inmunosupresión, etc.
 
             ## 6. Criterios de Ingreso y Alta
-            * Criterios de admisión en UCI recomendados.
-            * Criterios de "weaning" o desescalada terapéutica.
-            * Limitación del Esfuerzo Terapéutico (LET): ¿Menciona la guía aspectos éticos o de pronóstico fútil específicos para esta patología?
+            * Admisión, Weaning, Desescalada y Limitación del Esfuerzo Terapéutico (LET).
 
             ---
-            **Instrucciones de Estilo:**
-            * Usa lenguaje técnico médico preciso.
-            * Usa **negritas** para resaltar cifras, umbrales (ej. **< 6 ml/kg**) y fármacos.
-            * Si la guía incluye tablas o algoritmos visuales importantes, indica: *"[Ver Tabla/Figura X del documento original]"* y resume su contenido.
-            * Cita las fuentes o páginas de donde extraes los datos críticos.
+            **Instrucciones de formato:**
+            * Usa **negritas** para cifras y fármacos.
+            * Cita tablas/figuras del original si es relevante.
             `;
             
             let respuestaRaw = await intentarLlamadaRobusta(prompt);
@@ -254,9 +252,9 @@ html_template = """
                 const textoLimpio = limpiarMarkdown(respuestaRaw);
                 document.getElementById('analisis-content').innerHTML = marked.parse(textoLimpio);
                 
-                // Infografía - Pedimos un árbol de decisión clínico
+                // Infografía
                 document.getElementById('infografia-content').innerHTML = "<div class='msg ai'>Diseñando árbol de decisión clínico...</div>";
-                let mermaidRaw = await llamarGemini(`Crea un diagrama de flujo 'mermaid graph TD' detallado sobre el Algoritmo de Manejo Agudo. Usa rombos para decisiones clínicas críticas (ej. ¿TAM < 65? ¿Responde a fluidos?). SOLO CÓDIGO.`, WORKING_MODEL);
+                let mermaidRaw = await llamarGemini(`Crea un diagrama de flujo 'mermaid graph TD' detallado sobre el Algoritmo de Manejo Agudo. Usa rombos para decisiones clínicas críticas. SOLO CÓDIGO.`, WORKING_MODEL);
                 
                 if(mermaidRaw && !mermaidRaw.startsWith("Error")) {
                     const mermaidClean = limpiarMermaid(mermaidRaw);
@@ -294,7 +292,7 @@ html_template = """
             i.value = "";
             h.scrollTop = h.scrollHeight;
 
-            const resRaw = await intentarLlamadaRobusta(`Actúa como Jefe de Servicio UCI. Respuesta breve y técnica basada en la guía: ${t}`);
+            const resRaw = await intentarLlamadaRobusta(`Respuesta técnica y concisa basada en la guía: ${t}`);
             
             if(resRaw) {
                 const resLimpia = limpiarMarkdown(resRaw);
