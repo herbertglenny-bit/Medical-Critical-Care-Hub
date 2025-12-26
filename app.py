@@ -18,7 +18,7 @@ html_template = """
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Estación Médica V23</title>
+    <title>Estación Médica V24 (Mermaid Fix)</title>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -54,7 +54,7 @@ html_template = """
         .markdown-body h1, .markdown-body h2 { color: #1a73e8; border-bottom: 2px solid #eee; margin-top: 25px; }
         .markdown-body strong { color: #d93025; font-weight: 700; } 
 
-        /* === DISEÑO DE INFOGRAFÍA VISUAL (Para capturar como imagen) === */
+        /* === DISEÑO DE INFOGRAFÍA VISUAL === */
         #infografia-visual-container {
             background: white;
             padding: 40px;
@@ -62,7 +62,7 @@ html_template = """
             border-radius: 8px;
             max-width: 900px;
             margin: auto;
-            border-top: 10px solid #1a73e8; /* Borde estético superior */
+            border-top: 10px solid #1a73e8;
         }
         .info-header { text-align: center; margin-bottom: 40px; border-bottom: 2px solid #eee; padding-bottom: 20px; }
         .info-title { font-size: 2.2em; color: #202124; margin: 0; font-weight: 900; text-transform: uppercase; letter-spacing: 1px; }
@@ -108,7 +108,7 @@ html_template = """
 </head>
 <body>
 
-    <div id="drop-zone">📄 ARRASTRA TU PDF AQUÍ (V23: Suite Completa)</div>
+    <div id="drop-zone">📄 ARRASTRA TU PDF AQUÍ (V24: Mermaid Fix)</div>
 
     <div class="main-container">
         <div class="pdf-section">
@@ -162,12 +162,11 @@ html_template = """
         // --- INYECCIÓN DE CLAVE ---
         const API_KEY = "__API_KEY_PLACEHOLDER__"; 
 
-        // --- MODELOS (Priorizando NanoBanana/Gemini 2.x) ---
+        // --- MODELOS ---
         const MODEL_CANDIDATES = [
             "gemini-2.0-flash", 
             "gemini-2.5-flash",
-            "gemini-1.5-pro",
-            "gemini-pro"
+            "gemini-1.5-pro"
         ];
         let WORKING_MODEL = null;
 
@@ -182,6 +181,7 @@ html_template = """
             
             // Gestión botones superiores
             const btnImg = document.getElementById('btn-img-dl');
+            // Solo mostramos el botón de descarga si la infografía ya se ha generado (tiene título)
             if(id === 'tab-infografia' && document.querySelector('.info-title')) {
                 btnImg.style.display = 'inline-block';
             } else {
@@ -196,13 +196,25 @@ html_template = """
 
         // --- FUNCIÓN DE DESCARGA DE IMAGEN ---
         function descargarInfografia() {
-            const domNode = document.getElementById('infografia-visual-container');
-            // Usamos html2canvas con escala x2 para alta resolución
-            html2canvas(domNode, { scale: 2, useCORS: true }).then(canvas => {
+            // Capturamos TANTO el póster COMO el diagrama de flujo
+            const containerPoster = document.getElementById('infografia-visual-container');
+            const containerMermaid = document.getElementById('mermaid-section-container');
+            
+            // Creamos un contenedor temporal para juntarlos
+            const combinedContainer = document.createElement('div');
+            combinedContainer.style.background = "white";
+            combinedContainer.style.padding = "20px";
+            // Clonamos los nodos para no moverlos del sitio original
+            combinedContainer.appendChild(containerPoster.cloneNode(true));
+            combinedContainer.appendChild(containerMermaid.cloneNode(true));
+            document.body.appendChild(combinedContainer); // Lo añadimos al DOM invisiblemente
+
+            html2canvas(combinedContainer, { scale: 2, useCORS: true }).then(canvas => {
                 const a = document.createElement('a');
                 a.href = canvas.toDataURL('image/png');
-                a.download = 'Infografia_Medica_IA.png';
+                a.download = 'Resumen_Clinico_Completo.png';
                 a.click();
+                document.body.removeChild(combinedContainer); // Limpiamos
             });
         }
 
@@ -247,6 +259,7 @@ html_template = """
         function ajustarZoom(d) { if(pdfDoc) { scale = Math.max(0.2, scale + d); renderizarTodo(); } }
 
         function limpiarMarkdown(t) { return t.replace(/```html|```|<!DOCTYPE html>|<html>|<\/html>|<head>[\s\S]*?<\/head>|<body>|<\/body>/gi, "").trim(); }
+        // Limpiador mejorado para Mermaid
         function limpiarMermaid(t) { let l = t.replace(/```mermaid|```/gi, ""); const i = l.indexOf("graph TD"); if(i !== -1) l = l.substring(i); return l.trim(); }
 
         // --- CEREBRO IA ---
@@ -320,16 +333,40 @@ html_template = """
             if(resInfoHTML) {
                 containerVisual.innerHTML = limpiarMarkdown(resInfoHTML);
                 
-                // Diagrama Mermaid debajo
-                document.getElementById('mermaid-section-container').innerHTML = "<hr><h3>🔄 Algoritmo de Flujo</h3><div id='mermaid-in'>Generando...</div>";
-                let resMermaid = await llamarGemini(`Crea diagrama 'mermaid graph TD' del Algoritmo de Manejo. SOLO CÓDIGO.`, WORKING_MODEL);
+                // --- FASE 3: DIAGRAMA MERMAID (Con Prompt "Arquitecto Estricto") ---
+                document.getElementById('mermaid-section-container').innerHTML = "<hr><h3>🔄 Algoritmo de Flujo</h3><div id='mermaid-in'>Generando diagrama...</div>";
+                
+                // PROMPT MEJORADO PARA EVITAR ERRORES DE SINTAXIS
+                const promptMermaid = `
+                Actúa como un Arquitecto de Información. Crea un diagrama de flujo ESENCIAL y DE ALTO NIVEL del Algoritmo de Manejo Agudo de la guía.
+                
+                Reglas ESTRICTAS para el código Mermaid:
+                1. Usa SOLO 'graph TD'.
+                2. Usa IDs de nodo simples y cortos (A, B, C, D, E...).
+                3. IMPORTANTE: Pon COMILLAS DOBLES ("") alrededor de TODO el texto descriptivo de los nodos y las etiquetas de las líneas. 
+                   Ejemplo CORRECTO: A["Paciente Shock"] -->|"TAM < 65"| B["Iniciar NA"]
+                   Ejemplo INCORRECTO: A[Paciente Shock] -->|TAM < 65| B[Iniciar NA]
+                4. Mantén el diagrama simple, máximo 10-12 nodos principales. Evita textos muy largos.
+                5. Devuelve SOLO el código Mermaid, sin explicaciones.
+                `;
+                
+                let resMermaid = await llamarGemini(promptMermaid, WORKING_MODEL);
                 if(resMermaid && !resMermaid.startsWith("Error")) {
-                    document.getElementById('mermaid-in').innerHTML = `<div class="mermaid">${limpiarMermaid(resMermaid)}</div>`;
-                    try { mermaid.run(); } catch(e) { }
+                    const cleanMermaid = limpiarMermaid(resMermaid);
+                    // Verificación extra antes de renderizar
+                    if(cleanMermaid.startsWith("graph TD")) {
+                        document.getElementById('mermaid-in').innerHTML = `<div class="mermaid">${cleanMermaid}</div>`;
+                        try { mermaid.run(); } catch(e) { 
+                             document.getElementById('mermaid-in').innerHTML = `<div style="color:red; padding:10px; border:1px solid red;">Error de sintaxis en el gráfico generado por la IA. Inténtalo de nuevo.</div>`;
+                        }
+                    } else {
+                         document.getElementById('mermaid-in').innerHTML = "La IA no generó un gráfico válido.";
+                    }
                 }
+                
                 dropZone.innerText = "✅ Listo";
                 
-                // Si estamos en la pestaña infografía, mostramos botón
+                // Si estamos en la pestaña infografía, mostramos botón de descarga
                 if(document.getElementById('tab-infografia').classList.contains('active')) {
                     document.getElementById('btn-img-dl').style.display = 'inline-block';
                 }
