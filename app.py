@@ -1,38 +1,38 @@
+¡Cambio de rumbo recibido! Pasamos de una "Clase para Residentes" (PowerPoint) a un "Análisis Técnico de Alta Complejidad" (Jefe de Servicio).
+
+Este nuevo prompt es mucho más potente para uso clínico real, ya que busca dosis, targets hemodinámicos y semáforos de evidencia.
+
+Aquí tienes la Versión 18 (Jefe de Servicio UCI). He actualizado el código para que la IA siga estrictamente tu nueva estructura de 6 puntos.
+
+Instrucciones:
+Ve a app.py.
+
+Borra todo.
+
+Pega el código. (La seguridad sigue intacta, no toques los Secrets).
+
+Python
+
 import streamlit as st
 import streamlit.components.v1 as components
 
 # Configuración de página
 st.set_page_config(page_title="Estación Médica IA", layout="wide")
 
-# --- SEGURIDAD ROBUSTA: GESTIÓN DE ERRORES DE CLAVE ---
+# --- SEGURIDAD: LEEMOS LA CLAVE DESDE LOS SECRETOS ---
 try:
-    # Intentamos leer la clave específica
     API_KEY = st.secrets["GEMINI_API_KEY"]
 except (FileNotFoundError, KeyError):
-    # Si falla, mostramos un mensaje de ayuda visual en lugar de un error feo
-    st.error("""
-    ⛔ **ERROR DE CONFIGURACIÓN DE LA API KEY**
-    
-    El código no encuentra la clave 'GEMINI_API_KEY' en los Secrets de Streamlit.
-    
-    **SOLUCIÓN:**
-    1. Ve a tu panel de Streamlit Cloud (arriba a la derecha 'Manage app').
-    2. Clic en los tres puntos (⋮) -> Settings -> Secrets.
-    3. Asegúrate de que el texto sea EXACTAMENTE así:
-    
-    GEMINI_API_KEY = "tu_clave_de_google_aqui"
-    
-    (Cuidado con las mayúsculas y las comillas).
-    """)
+    st.error("⚠️ Error: No encuentro 'GEMINI_API_KEY' en los Secrets de Streamlit.")
     st.stop()
-# ------------------------------------------------------
+# -----------------------------------------------------
 
 html_template = """
 <!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Estación Médica V15 (Final)</title>
+    <title>Estación Médica V18 (Jefe de Servicio)</title>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -47,33 +47,29 @@ html_template = """
         #drop-zone { background-color: #e8f0fe; border-bottom: 2px dashed #4285F4; color: #1967d2; padding: 12px; text-align: center; font-weight: bold; cursor: pointer; transition: 0.3s; }
         #drop-zone:hover, #drop-zone.dragover { background-color: #d2e3fc; padding: 20px; }
         
-        /* CONTENEDOR PRINCIPAL */
+        /* LAYOUT */
         .main-container { display: flex; flex: 1; height: calc(100vh - 60px); }
-        
-        /* IZQUIERDA */
         .pdf-section { width: 50%; border-right: 1px solid #ccc; background: #525659; display: flex; flex-direction: column; overflow: hidden; }
         .pdf-toolbar { background: #333; padding: 8px; display: flex; gap: 10px; justify-content: center; align-items: center; color: white; box-shadow: 0 2px 5px rgba(0,0,0,0.2); z-index: 10; flex-shrink: 0; }
         .pdf-scroll-container { flex: 1; overflow: auto; background-color: #525659; padding: 20px; display: flex; flex-direction: column; align-items: center; }
         .pdf-page-canvas { box-shadow: 0 4px 10px rgba(0,0,0,0.3); background: white; margin-bottom: 15px; flex-shrink: 0; }
-
-        /* Botones */
-        button { cursor: pointer; padding: 6px 12px; border-radius: 4px; border: none; background: white; font-weight: bold; font-size: 14px; }
-        button:hover { background: #ddd; }
-        .btn-download { background-color: #4CAF50; color: white; text-decoration: none; padding: 6px 12px; border-radius: 4px; font-size: 14px; display: none; }
-
-        /* DERECHA */
+        
         .right-panel { width: 50%; display: flex; flex-direction: column; background: white; }
         .tabs-header { display: flex; background: #f1f3f4; border-bottom: 1px solid #ccc; }
         .tab-btn { flex: 1; padding: 15px; border: none; background: transparent; cursor: pointer; font-weight: bold; color: #5f6368; border-bottom: 3px solid transparent; }
         .tab-btn.active { color: #1a73e8; border-bottom: 3px solid #1a73e8; background: white; }
         .tab-content { flex: 1; padding: 25px; overflow-y: auto; display: none; }
         .tab-content.active { display: block; }
-        
-        /* Estilos Texto */
-        .markdown-body { line-height: 1.6; color: #333; }
-        .markdown-body h1, .markdown-body h2, .markdown-body h3 { color: #1a73e8; border-bottom: 1px solid #eee; margin-top: 20px; }
-        .error-box { background: #fce8e6; color: #c5221f; padding: 10px; border: 1px solid #f2b2ae; font-family: monospace; font-size: 0.85em; white-space: pre-wrap; }
-        
+
+        /* Estilos Markdown Clínico */
+        .markdown-body { line-height: 1.6; color: #333; font-size: 0.95rem; }
+        .markdown-body h1, .markdown-body h2 { color: #1a73e8; border-bottom: 2px solid #eee; margin-top: 25px; padding-bottom: 5px; }
+        .markdown-body h3 { color: #202124; font-weight: bold; margin-top: 20px; text-transform: uppercase; font-size: 0.9rem; letter-spacing: 0.5px; }
+        .markdown-body ul { padding-left: 20px; }
+        .markdown-body li { margin-bottom: 6px; }
+        .markdown-body strong { color: #d93025; font-weight: 700; } /* Datos críticos en rojo */
+        .markdown-body blockquote { border-left: 4px solid #1a73e8; padding-left: 10px; color: #555; background: #f8f9fa; }
+
         /* Chat */
         #chat-container { display: flex; flex-direction: column; height: 100%; }
         #chat-history { flex: 1; overflow-y: auto; margin-bottom: 10px; }
@@ -82,11 +78,15 @@ html_template = """
         .msg.ai { background: #f1f3f4; align-self: flex-start; }
         .chat-input-area { display: flex; gap: 10px; padding-top: 10px; border-top: 1px solid #eee; }
         #user-input { flex: 1; padding: 10px; border: 1px solid #ccc; border-radius: 20px; }
+
+        /* Botones */
+        button { cursor: pointer; padding: 6px 12px; border-radius: 4px; border: none; background: white; font-weight: bold; }
+        .btn-download { background-color: #4CAF50; color: white; text-decoration: none; padding: 6px 12px; border-radius: 4px; font-size: 14px; display: none; }
     </style>
 </head>
 <body>
 
-    <div id="drop-zone">📄 ARRASTRA TU PDF AQUÍ</div>
+    <div id="drop-zone">📄 ARRASTRA GPC (Modo: Jefe de Servicio)</div>
 
     <div class="main-container">
         <div class="pdf-section">
@@ -102,15 +102,15 @@ html_template = """
 
         <div class="right-panel">
             <div class="tabs-header">
-                <button class="tab-btn active" onclick="abrirPestana('tab-analisis')">📝 Análisis</button>
-                <button class="tab-btn" onclick="abrirPestana('tab-infografia')">📊 Infografía</button>
-                <button class="tab-btn" onclick="abrirPestana('tab-chat')">💬 Chat</button>
+                <button class="tab-btn active" onclick="abrirPestana('tab-analisis')">📝 Análisis Avanzado</button>
+                <button class="tab-btn" onclick="abrirPestana('tab-infografia')">📊 Algoritmo</button>
+                <button class="tab-btn" onclick="abrirPestana('tab-chat')">💬 Discusión</button>
             </div>
             
             <div id="tab-analisis" class="tab-content active">
                 <div id="analisis-content" class="markdown-body">
                     <p style="color:#666; text-align:center; margin-top:50px;">
-                        Arrastra un PDF médico.
+                        Sistema listo.<br>Sube una Guía de Práctica Clínica para disección técnica.
                     </p>
                 </div>
             </div>
@@ -121,7 +121,7 @@ html_template = """
                 <div id="chat-container">
                     <div id="chat-history"></div>
                     <div class="chat-input-area">
-                        <input type="text" id="user-input" placeholder="Pregunta algo..." onkeypress="if(event.key==='Enter') enviarMensaje()">
+                        <input type="text" id="user-input" placeholder="Consultar detalle técnico..." onkeypress="if(event.key==='Enter') enviarMensaje()">
                         <button onclick="enviarMensaje()">Enviar</button>
                     </div>
                 </div>
@@ -130,14 +130,11 @@ html_template = """
     </div>
 
     <script>
-        // INYECCIÓN SEGURA DESDE PYTHON
         const API_KEY = "__API_KEY_PLACEHOLDER__"; 
 
-        // LISTA DE MODELOS ACTUALIZADA
         const MODEL_CANDIDATES = [
-            "gemini-2.5-flash",
-            "gemini-2.5-pro",
-            "gemini-2.0-flash",
+            "gemini-2.0-flash", 
+            "gemini-2.5-flash", 
             "gemini-1.5-pro",
             "gemini-flash-latest"
         ];
@@ -163,7 +160,7 @@ html_template = """
             e.preventDefault(); dropZone.classList.remove('dragover');
             const file = e.dataTransfer.files[0];
             if(file && file.type === "application/pdf") {
-                dropZone.innerText = "⏳ Procesando...";
+                dropZone.innerText = "⏳ Diseccionando evidencia...";
                 const fileURL = URL.createObjectURL(file);
                 const db = document.getElementById('btn-download');
                 db.href = fileURL; db.download = file.name; db.style.display = "inline-block";
@@ -187,7 +184,6 @@ html_template = """
             container.innerHTML = "";
             document.getElementById('zoom-level').innerText = Math.round(scale * 100) + "%";
             container.style.alignItems = scale > 1.0 ? "flex-start" : "center";
-
             for (let num = 1; num <= pdfDoc.numPages; num++) {
                 const page = await pdfDoc.getPage(num);
                 const viewport = page.getViewport({ scale: scale, rotation: rotation });
@@ -198,46 +194,109 @@ html_template = """
                 page.render({ canvasContext: canvas.getContext('2d'), viewport: viewport });
             }
         }
-
         function ajustarZoom(d) { if(pdfDoc) { scale = Math.max(0.2, scale + d); renderizarTodo(); } }
         function rotarPDF() { if(pdfDoc) { rotation = (rotation + 90) % 360; renderizarTodo(); } }
 
+        // --- LIMPIEZA DE CÓDIGO ---
+        function limpiarMarkdown(texto) {
+            let limpio = texto.replace(/```html/gi, "").replace(/```/g, "");
+            limpio = limpio.replace(/<!DOCTYPE html>/gi, "").replace(/<html>/gi, "").replace(/<\/html>/gi, "");
+            limpio = limpio.replace(/<head>[\s\S]*?<\/head>/gi, "").replace(/<body>/gi, "").replace(/<\/body>/gi, "");
+            return limpio.trim();
+        }
+
+        function limpiarMermaid(texto) {
+            let limpio = texto.replace(/```mermaid/gi, "").replace(/```/g, "");
+            const indiceInicio = limpio.indexOf("graph TD");
+            if (indiceInicio !== -1) limpio = limpio.substring(indiceInicio);
+            return limpio.trim();
+        }
+
         async function procesarIA() {
-            dropZone.innerText = "🤖 Analizando...";
-            document.getElementById('analisis-content').innerHTML = "<div class='msg ai'>🧠 Conectando con Gemini 2.5...</div>";
+            dropZone.innerText = "🤖 Análisis Jefe Servicio...";
+            document.getElementById('analisis-content').innerHTML = "<div class='msg ai'>🧠 <b>Iniciando disección profunda...</b><br>Extrayendo targets hemodinámicos, dosis y semáforos de evidencia...</div>";
             
-            const prompt = `Analiza este PDF médico. HTML limpio con: <h3>🏥 Título</h3> <h3>🎯 Objetivo</h3> <h3>📊 Metodología</h3> <h3>💊 Resultados Clave (Negrita)</h3> <h3>⚠️ Conclusiones</h3>`;
+            // --- NUEVO PROMPT TÉCNICO AVANZADO ---
+            const prompt = `
+            # ROL
+            Actúa como un Jefe de Servicio de Medicina Intensiva con subespecialización en Medicina Basada en la Evidencia. Tu objetivo es realizar una disección exhaustiva y detallada de la Guía de Práctica Clínica (GPC) proporcionada.
+
+            # OBJETIVO
+            Generar un **Resumen Clínico Avanzado** dirigido exclusivamente a médicos especialistas en Cuidados Intensivos. El resumen debe ser extremadamente detallado, técnico y orientado a la resolución de problemas clínicos complejos a pie de cama. Ignora introducciones genéricas o epidemiología básica.
+
+            # ESTRUCTURA OBLIGATORIA DEL ANÁLISIS
+            Por favor, analiza el documento y estructura la respuesta en los siguientes módulos clínicos, usando formato MARKDOWN limpio:
+
+            ## 1. Definiciones, Criterios y Fenotipos
+            * **Nuevos Criterios Diagnósticos:** ¿Han cambiado los umbrales o definiciones (ej. Sepsis-3, Berlín, EOLIA)?
+            * **Fenotipos/Subgrupos:** ¿Distingue la guía subgrupos de pacientes que requieran manejo diferenciado (ej. fenotipos inflamatorios, pacientes inmunodeprimidos)?
+            * **Scores y Escalas:** ¿Qué escalas de gravedad o pronóstico recomienda calcular explícitamente?
+
+            ## 2. Algoritmo de Manejo en Fase Aguda (Resucitación)
+            * **Metas ("Targets") Inmediatas:** Lista detallada de objetivos hemodinámicos (TAM, Lactato), respiratorios (SpO2, pH, Driving Pressure) o metabólicos.
+            * **Primera Línea de Tratamiento:** Fármacos o intervenciones "Gold Standard" para las primeras 6 horas.
+            * **Dosis y Posología:** Extrae tablas de dosificación, ajustes por función renal/hepática y tiempos de infusión si aparecen en el texto.
+
+            ## 3. Soporte Vital y Procedimientos (El "Core" de UCI)
+            * **Soporte Ventilatorio:** Modos recomendados, titulación de PEEP, volumen corriente, indicaciones de prono o bloqueo neuromuscular.
+            * **Soporte Hemodinámico:** Elección de vasopresores/inotrópicos (primera vs. segunda línea), tipos de fluidos y monitorización.
+            * **Terapias de Rescate/ECMO:** Criterios exactos de indicación y contraindicación para terapias extracorpóreas o avanzadas.
+
+            ## 4. Semáforo de Evidencia (Cambios de Práctica)
+            * 🔴 **STOP (No hacer):** Intervenciones que la guía desaconseja explícitamente o que han demostrado daño (muy importante).
+            * 🟡 **Áreas Grises:** Situaciones donde la evidencia es débil y la guía sugiere "individualizar" o "considerar".
+            * 🟢 **GO (Nuevos Estándares):** Recomendaciones fuertes que cambian la práctica habitual previa.
+
+            ## 5. Poblaciones Especiales en UCI
+            * Detalla recomendaciones específicas para: Pacientes con Fallo Renal (CRRT), Obesidad Mórbida, Anciano frágil, Embarazo o Inmunosupresión si la guía los menciona.
+
+            ## 6. Criterios de Ingreso y Alta
+            * Criterios de admisión en UCI recomendados.
+            * Criterios de "weaning" o desescalada terapéutica.
+            * Limitación del Esfuerzo Terapéutico (LET): ¿Menciona la guía aspectos éticos o de pronóstico fútil específicos para esta patología?
+
+            ---
+            **Instrucciones de Estilo:**
+            * Usa lenguaje técnico médico preciso.
+            * Usa **negritas** para resaltar cifras, umbrales (ej. **< 6 ml/kg**) y fármacos.
+            * Si la guía incluye tablas o algoritmos visuales importantes, indica: *"[Ver Tabla/Figura X del documento original]"* y resume su contenido.
+            * Cita las fuentes o páginas de donde extraes los datos críticos.
+            `;
             
-            const html = await intentarLlamadaRobusta(prompt);
+            let respuestaRaw = await intentarLlamadaRobusta(prompt);
             
-            if(html) {
-                document.getElementById('analisis-content').innerHTML = marked.parse(html);
-                document.getElementById('infografia-content').innerHTML = "<div class='msg ai'>Generando gráfico...</div>";
-                let mermaidCode = await llamarGemini(`Crea un diagrama mermaid graph TD del estudio. SOLO CÓDIGO.`, WORKING_MODEL);
-                if(mermaidCode && !mermaidCode.startsWith("Error")) {
-                    mermaidCode = mermaidCode.replace(/```mermaid/g, '').replace(/```/g, '').trim();
-                    document.getElementById('infografia-content').innerHTML = `<div class="mermaid">${mermaidCode}</div>`;
-                    try { mermaid.run(); } catch(e){}
+            if(respuestaRaw) {
+                const textoLimpio = limpiarMarkdown(respuestaRaw);
+                document.getElementById('analisis-content').innerHTML = marked.parse(textoLimpio);
+                
+                // Infografía - Pedimos un árbol de decisión clínico
+                document.getElementById('infografia-content').innerHTML = "<div class='msg ai'>Diseñando árbol de decisión clínico...</div>";
+                let mermaidRaw = await llamarGemini(`Crea un diagrama de flujo 'mermaid graph TD' detallado sobre el Algoritmo de Manejo Agudo. Usa rombos para decisiones clínicas críticas (ej. ¿TAM < 65? ¿Responde a fluidos?). SOLO CÓDIGO.`, WORKING_MODEL);
+                
+                if(mermaidRaw && !mermaidRaw.startsWith("Error")) {
+                    const mermaidClean = limpiarMermaid(mermaidRaw);
+                    document.getElementById('infografia-content').innerHTML = `<div class="mermaid">${mermaidClean}</div>`;
+                    try { mermaid.run(); } catch(e) { 
+                        document.getElementById('infografia-content').innerHTML += "<br><small style='color:red'>Error visualizando gráfico</small>";
+                    }
                 }
-                dropZone.innerText = "✅ Listo (" + WORKING_MODEL + ")";
+                dropZone.innerText = "✅ Análisis Completado";
             }
         }
 
         async function intentarLlamadaRobusta(prompt) {
             if (WORKING_MODEL) return await llamarGemini(prompt, WORKING_MODEL);
             let errores = [];
-            
             for (let modelo of MODEL_CANDIDATES) {
                 console.log(`Probando ${modelo}...`);
                 const res = await llamarGemini(prompt, modelo);
                 if (res && !res.startsWith("Error")) {
                     WORKING_MODEL = modelo;
                     return res;
-                } else {
-                    errores.push(`${modelo}: ${res}`);
                 }
+                errores.push(`${modelo}: ${res}`);
             }
-            document.getElementById('analisis-content').innerHTML = `<div class="error-box"><b>Fallo Total.</b><br>${errores.join('<br>')}</div>`;
+            document.getElementById('analisis-content').innerHTML = `<div class="error-box"><b>Fallo.</b><br>${errores.join('<br>')}</div>`;
             return null;
         }
 
@@ -245,9 +304,20 @@ html_template = """
             const i = document.getElementById('user-input');
             const t = i.value; if(!t) return;
             const h = document.getElementById('chat-history');
-            h.innerHTML += `<div class="msg user">${t}</div>`; i.value = "";
-            const r = await intentarLlamadaRobusta(`Responde brevemente según el PDF: ${t}`);
-            if(r) h.innerHTML += `<div class="msg ai">${marked.parse(r)}</div>`;
+            
+            h.innerHTML += `<div class="msg user">${t}</div>`; 
+            i.value = "";
+            h.scrollTop = h.scrollHeight;
+
+            const resRaw = await intentarLlamadaRobusta(`Actúa como Jefe de Servicio UCI. Respuesta breve y técnica basada en la guía: ${t}`);
+            
+            if(resRaw) {
+                const resLimpia = limpiarMarkdown(resRaw);
+                h.innerHTML += `<div class="msg ai">${marked.parse(resLimpia)}</div>`;
+                h.scrollTop = h.scrollHeight;
+            } else {
+                h.innerHTML += `<div class="msg ai" style="color:red">Error de conexión.</div>`;
+            }
         }
 
         async function llamarGemini(prompt, modelo) {
@@ -267,6 +337,5 @@ html_template = """
 </html>
 """
 
-# INYECCIÓN SEGURA (No tocar)
 final_html = html_template.replace("__API_KEY_PLACEHOLDER__", API_KEY)
 components.html(final_html, height=1000, scrolling=True)
