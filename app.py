@@ -4,16 +4,21 @@ import streamlit.components.v1 as components
 # Configuración de página
 st.set_page_config(page_title="Estación Médica IA", layout="wide")
 
-# --- ¡PEGA TU API KEY AQUÍ! ---
-API_KEY = "AIzaSyCG20t5xU50wAY-yv1oNcen5738ZqPFSag"
-# ------------------------------
+# --- SEGURIDAD: LEEMOS LA CLAVE DESDE LOS SECRETOS DE STREAMLIT ---
+# Esto evita que la clave se filtre en GitHub
+try:
+    API_KEY = st.secrets["GEMINI_API_KEY"]
+except FileNotFoundError:
+    st.error("⚠️ Error de Seguridad: No has configurado el 'Secret'. Ve al panel de Streamlit > Settings > Secrets y añade: GEMINI_API_KEY = 'tu_clave'")
+    st.stop()
+# ------------------------------------------------------------------
 
 html_template = """
 <!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Estación Médica V13 (Futuro)</title>
+    <title>Estación Médica (Secure)</title>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -34,8 +39,6 @@ html_template = """
         /* IZQUIERDA */
         .pdf-section { width: 50%; border-right: 1px solid #ccc; background: #525659; display: flex; flex-direction: column; overflow: hidden; }
         .pdf-toolbar { background: #333; padding: 8px; display: flex; gap: 10px; justify-content: center; align-items: center; color: white; box-shadow: 0 2px 5px rgba(0,0,0,0.2); z-index: 10; flex-shrink: 0; }
-        
-        /* SCROLL */
         .pdf-scroll-container { flex: 1; overflow: auto; background-color: #525659; padding: 20px; display: flex; flex-direction: column; align-items: center; }
         .pdf-page-canvas { box-shadow: 0 4px 10px rgba(0,0,0,0.3); background: white; margin-bottom: 15px; flex-shrink: 0; }
 
@@ -43,7 +46,7 @@ html_template = """
         button { cursor: pointer; padding: 6px 12px; border-radius: 4px; border: none; background: white; font-weight: bold; font-size: 14px; }
         button:hover { background: #ddd; }
         .btn-download { background-color: #4CAF50; color: white; text-decoration: none; padding: 6px 12px; border-radius: 4px; font-size: 14px; display: none; }
-        
+
         /* DERECHA */
         .right-panel { width: 50%; display: flex; flex-direction: column; background: white; }
         .tabs-header { display: flex; background: #f1f3f4; border-bottom: 1px solid #ccc; }
@@ -69,7 +72,7 @@ html_template = """
 </head>
 <body>
 
-    <div id="drop-zone">📄 ARRASTRA TU PDF AQUÍ (Modelos V2.5 Activados)</div>
+    <div id="drop-zone">📄 ARRASTRA TU PDF AQUÍ</div>
 
     <div class="main-container">
         <div class="pdf-section">
@@ -113,15 +116,16 @@ html_template = """
     </div>
 
     <script>
+        // La clave se inyectará desde Python de forma segura
         const API_KEY = "__API_KEY_PLACEHOLDER__"; 
 
-        // ¡AQUÍ ESTÁ LA MAGIA! USAMOS TUS MODELOS REALES
+        // LISTA DE MODELOS ACTUALIZADA CON LOS TUYOS
         const MODEL_CANDIDATES = [
-            "gemini-2.5-flash",          // <--- Tu modelo principal más rápido
-            "gemini-2.5-pro",            // <--- Tu modelo principal más potente
-            "gemini-2.0-flash",          // <--- Respaldo estable
-            "gemini-flash-latest",       // <--- Alias genérico
-            "gemini-pro-latest"          // <--- Alias genérico Pro
+            "gemini-2.5-flash",
+            "gemini-2.5-pro",
+            "gemini-2.0-flash",
+            "gemini-1.5-pro",
+            "gemini-flash-latest"
         ];
         let WORKING_MODEL = null;
 
@@ -185,8 +189,8 @@ html_template = """
         function rotarPDF() { if(pdfDoc) { rotation = (rotation + 90) % 360; renderizarTodo(); } }
 
         async function procesarIA() {
-            dropZone.innerText = "🤖 Analizando (V2.5)...";
-            document.getElementById('analisis-content').innerHTML = "<div class='msg ai'>🧠 Leyendo artículo con Gemini 2.5...</div>";
+            dropZone.innerText = "🤖 Analizando...";
+            document.getElementById('analisis-content').innerHTML = "<div class='msg ai'>🧠 Conectando con Gemini...</div>";
             
             const prompt = `Analiza este PDF médico. HTML limpio con: <h3>🏥 Título</h3> <h3>🎯 Objetivo</h3> <h3>📊 Metodología</h3> <h3>💊 Resultados Clave (Negrita)</h3> <h3>⚠️ Conclusiones</h3>`;
             
@@ -249,5 +253,6 @@ html_template = """
 </html>
 """
 
+# INYECCIÓN SEGURA DE CLAVE DESDE SECRETS
 final_html = html_template.replace("__API_KEY_PLACEHOLDER__", API_KEY)
 components.html(final_html, height=1000, scrolling=True)
