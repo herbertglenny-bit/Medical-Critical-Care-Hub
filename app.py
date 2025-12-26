@@ -4,21 +4,35 @@ import streamlit.components.v1 as components
 # Configuración de página
 st.set_page_config(page_title="Estación Médica IA", layout="wide")
 
-# --- SEGURIDAD: LEEMOS LA CLAVE DESDE LOS SECRETOS DE STREAMLIT ---
-# Esto evita que la clave se filtre en GitHub
+# --- SEGURIDAD ROBUSTA: GESTIÓN DE ERRORES DE CLAVE ---
 try:
+    # Intentamos leer la clave específica
     API_KEY = st.secrets["GEMINI_API_KEY"]
-except FileNotFoundError:
-    st.error("⚠️ Error de Seguridad: No has configurado el 'Secret'. Ve al panel de Streamlit > Settings > Secrets y añade: GEMINI_API_KEY = 'tu_clave'")
+except (FileNotFoundError, KeyError):
+    # Si falla, mostramos un mensaje de ayuda visual en lugar de un error feo
+    st.error("""
+    ⛔ **ERROR DE CONFIGURACIÓN DE LA API KEY**
+    
+    El código no encuentra la clave 'GEMINI_API_KEY' en los Secrets de Streamlit.
+    
+    **SOLUCIÓN:**
+    1. Ve a tu panel de Streamlit Cloud (arriba a la derecha 'Manage app').
+    2. Clic en los tres puntos (⋮) -> Settings -> Secrets.
+    3. Asegúrate de que el texto sea EXACTAMENTE así:
+    
+    GEMINI_API_KEY = "tu_clave_de_google_aqui"
+    
+    (Cuidado con las mayúsculas y las comillas).
+    """)
     st.stop()
-# ------------------------------------------------------------------
+# ------------------------------------------------------
 
 html_template = """
 <!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Estación Médica (Secure)</title>
+    <title>Estación Médica V15 (Final)</title>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -116,10 +130,10 @@ html_template = """
     </div>
 
     <script>
-        // La clave se inyectará desde Python de forma segura
+        // INYECCIÓN SEGURA DESDE PYTHON
         const API_KEY = "__API_KEY_PLACEHOLDER__"; 
 
-        // LISTA DE MODELOS ACTUALIZADA CON LOS TUYOS
+        // LISTA DE MODELOS ACTUALIZADA
         const MODEL_CANDIDATES = [
             "gemini-2.5-flash",
             "gemini-2.5-pro",
@@ -190,7 +204,7 @@ html_template = """
 
         async function procesarIA() {
             dropZone.innerText = "🤖 Analizando...";
-            document.getElementById('analisis-content').innerHTML = "<div class='msg ai'>🧠 Conectando con Gemini...</div>";
+            document.getElementById('analisis-content').innerHTML = "<div class='msg ai'>🧠 Conectando con Gemini 2.5...</div>";
             
             const prompt = `Analiza este PDF médico. HTML limpio con: <h3>🏥 Título</h3> <h3>🎯 Objetivo</h3> <h3>📊 Metodología</h3> <h3>💊 Resultados Clave (Negrita)</h3> <h3>⚠️ Conclusiones</h3>`;
             
@@ -253,6 +267,6 @@ html_template = """
 </html>
 """
 
-# INYECCIÓN SEGURA DE CLAVE DESDE SECRETS
+# INYECCIÓN SEGURA (No tocar)
 final_html = html_template.replace("__API_KEY_PLACEHOLDER__", API_KEY)
 components.html(final_html, height=1000, scrolling=True)
