@@ -4,21 +4,20 @@ import streamlit.components.v1 as components
 # Configuración de página
 st.set_page_config(page_title="Estación Médica IA", layout="wide")
 
-# --- SEGURIDAD: LEEMOS LA CLAVE DESDE LOS SECRETOS ---
+# --- SEGURIDAD ---
 try:
     API_KEY = st.secrets["GEMINI_API_KEY"]
 except (FileNotFoundError, KeyError):
     st.error("⚠️ Error Crítico: No se encuentra 'GEMINI_API_KEY' en los Secrets.")
-    st.info("Configúrala en: Streamlit Cloud -> Settings -> Secrets")
     st.stop()
-# -----------------------------------------------------
+# -----------------
 
 html_template = """
 <!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Estación Médica V24 (Mermaid Fix)</title>
+    <title>Estación Médica V25 (Pro Poster)</title>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -28,206 +27,221 @@ html_template = """
     </script>
     
     <style>
-        /* ESTILOS GENERALES */
-        body { font-family: 'Segoe UI', sans-serif; margin: 0; padding: 0; background-color: #f0f2f5; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+        /* --- ESTILOS GENERALES UI --- */
+        body { font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; margin: 0; padding: 0; background-color: #f4f6f9; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
         
         /* BARRA SUPERIOR */
-        #drop-zone { background-color: #e8f0fe; border-bottom: 2px dashed #4285F4; color: #1967d2; padding: 12px; text-align: center; font-weight: bold; cursor: pointer; transition: 0.3s; }
-        #drop-zone:hover, #drop-zone.dragover { background-color: #d2e3fc; padding: 20px; }
+        #drop-zone { background: linear-gradient(90deg, #0d47a1, #1976d2); color: white; padding: 15px; text-align: center; font-weight: 600; cursor: pointer; transition: 0.3s; box-shadow: 0 2px 5px rgba(0,0,0,0.1); letter-spacing: 0.5px; }
+        #drop-zone:hover { background: linear-gradient(90deg, #1565c0, #1e88e5); }
+        #drop-zone.dragover { background: #4caf50; }
         
-        /* ESTRUCTURA PRINCIPAL */
         .main-container { display: flex; flex: 1; height: calc(100vh - 60px); }
-        .pdf-section { width: 50%; border-right: 1px solid #ccc; background: #525659; display: flex; flex-direction: column; overflow: hidden; }
-        .pdf-toolbar { background: #333; padding: 8px; display: flex; gap: 10px; justify-content: center; align-items: center; color: white; box-shadow: 0 2px 5px rgba(0,0,0,0.2); z-index: 10; flex-shrink: 0; }
-        .pdf-scroll-container { flex: 1; overflow: auto; background-color: #525659; padding: 20px; display: flex; flex-direction: column; align-items: center; }
-        .pdf-page-canvas { box-shadow: 0 4px 10px rgba(0,0,0,0.3); background: white; margin-bottom: 15px; flex-shrink: 0; }
         
-        .right-panel { width: 50%; display: flex; flex-direction: column; background: white; }
-        .tabs-header { display: flex; background: #f1f3f4; border-bottom: 1px solid #ccc; }
-        .tab-btn { flex: 1; padding: 15px; border: none; background: transparent; cursor: pointer; font-weight: bold; color: #5f6368; border-bottom: 3px solid transparent; }
+        /* PANEL IZQUIERDO (PDF) */
+        .pdf-section { width: 45%; border-right: 1px solid #ddd; background: #323639; display: flex; flex-direction: column; }
+        .pdf-toolbar { background: #202124; padding: 10px; display: flex; gap: 10px; justify-content: center; align-items: center; }
+        .pdf-scroll-container { flex: 1; overflow: auto; padding: 20px; display: flex; flex-direction: column; align-items: center; }
+        .pdf-page-canvas { box-shadow: 0 4px 15px rgba(0,0,0,0.5); margin-bottom: 15px; }
+
+        /* PANEL DERECHO (IA) */
+        .right-panel { width: 55%; display: flex; flex-direction: column; background: #fff; }
+        .tabs-header { display: flex; background: #f8f9fa; border-bottom: 1px solid #ddd; padding: 0 10px; }
+        .tab-btn { flex: 1; padding: 15px; border: none; background: transparent; cursor: pointer; font-weight: 600; color: #5f6368; border-bottom: 3px solid transparent; transition: 0.2s; }
+        .tab-btn:hover { color: #1a73e8; background: #f1f3f4; }
         .tab-btn.active { color: #1a73e8; border-bottom: 3px solid #1a73e8; background: white; }
-        .tab-content { flex: 1; padding: 25px; overflow-y: auto; display: none; }
+        .tab-content { flex: 1; padding: 25px; overflow-y: auto; display: none; background: #fcfcfc; }
         .tab-content.active { display: block; }
 
-        /* MARKDOWN CLÍNICO */
-        .markdown-body { line-height: 1.6; color: #333; font-size: 0.95rem; }
-        .markdown-body h1, .markdown-body h2 { color: #1a73e8; border-bottom: 2px solid #eee; margin-top: 25px; }
-        .markdown-body strong { color: #d93025; font-weight: 700; } 
-
-        /* === DISEÑO DE INFOGRAFÍA VISUAL === */
-        #infografia-visual-container {
-            background: white;
-            padding: 40px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
-            border-radius: 8px;
-            max-width: 900px;
-            margin: auto;
-            border-top: 10px solid #1a73e8;
+        /* --- ESTILOS DE LA INFOGRAFÍA VISUAL (TIPO PÓSTER) --- */
+        /* Este contenedor tiene ancho fijo para asegurar calidad al descargar */
+        #infografia-visual-wrapper {
+            width: 100%;
+            display: flex;
+            justify-content: center;
+            background: #e9ecef; /* Fondo gris para resaltar el papel */
+            padding: 20px;
+            box-sizing: border-box;
         }
-        .info-header { text-align: center; margin-bottom: 40px; border-bottom: 2px solid #eee; padding-bottom: 20px; }
-        .info-title { font-size: 2.2em; color: #202124; margin: 0; font-weight: 900; text-transform: uppercase; letter-spacing: 1px; }
-        .info-subtitle { font-size: 1.2em; color: #1a73e8; font-weight: 500; margin-top: 10px; }
-        
-        /* Semáforo */
-        .info-grid-semaforo { display: flex; gap: 20px; margin-bottom: 40px; }
-        .info-box { flex: 1; padding: 20px; border-radius: 8px; color: white; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
-        .info-box h3 { margin-top: 0; border-bottom: 1px solid rgba(255,255,255,0.4); padding-bottom: 10px; font-size: 1.1em; }
-        .info-box ul { padding-left: 20px; margin-bottom: 0; }
-        .info-box li { margin-bottom: 5px; }
-        .box-stop { background: #d93025; }
-        .box-caution { background: #f9ab00; color: #202124; }
-        .box-caution h3 { border-bottom: 1px solid rgba(0,0,0,0.2); }
-        .box-go { background: #188038; }
 
-        /* Big Numbers */
-        .info-big-numbers-container { display: flex; flex-wrap: wrap; gap: 20px; justify-content: space-around; margin: 40px 0; padding: 25px; background: #f1f3f4; border-radius: 12px; }
-        .info-big-number-item { text-align: center; flex: 1 1 180px; }
-        .info-number-val { display: block; font-size: 2.5em; font-weight: 900; color: #1a73e8; line-height: 1; }
-        .info-number-desc { font-size: 0.95em; color: #555; margin-top: 5px; font-weight: 600; text-transform: uppercase; }
+        #infografia-visual-container {
+            width: 800px; /* Ancho fijo A4 aprox para descarga */
+            background: white;
+            padding: 0; /* El padding lo manejan los hijos */
+            box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+            font-family: 'Roboto', sans-serif;
+            color: #333;
+            overflow: hidden; /* Para bordes redondeados */
+        }
 
-        /* Footer */
-        .info-footer { background: #e8f0fe; padding: 25px; border-radius: 8px; margin-top: 40px; border-left: 5px solid #1a73e8; }
-        .info-footer h3 { margin-top: 0; color: #1a73e8; }
+        /* HEADER DEL PÓSTER */
+        .poster-header {
+            background: #0d47a1; /* Azul Médico Profundo */
+            color: white;
+            padding: 30px 40px;
+            text-align: center;
+            border-bottom: 5px solid #f9ab00; /* Toque de color */
+        }
+        .poster-title { font-size: 28px; font-weight: 900; margin: 0; text-transform: uppercase; letter-spacing: 1px; line-height: 1.2; }
+        .poster-subtitle { font-size: 16px; margin-top: 10px; opacity: 0.9; font-weight: 300; }
+        .poster-tags { margin-top: 15px; display: flex; gap: 10px; justify-content: center; }
+        .poster-tag { background: rgba(255,255,255,0.2); padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: bold; }
+
+        /* BODY DEL PÓSTER */
+        .poster-body { padding: 40px; }
+
+        /* SEMÁFORO ESTILIZADO */
+        .traffic-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px; margin-bottom: 30px; }
+        .traffic-card { padding: 15px; border-radius: 8px; border: 1px solid #eee; }
+        .card-stop { background: #fff5f5; border-top: 4px solid #d93025; }
+        .card-caution { background: #fffbf0; border-top: 4px solid #f9ab00; }
+        .card-go { background: #f0f9f4; border-top: 4px solid #188038; }
         
+        .traffic-card h3 { margin-top: 0; font-size: 14px; font-weight: 800; text-transform: uppercase; display: flex; align-items: center; gap: 8px; }
+        .card-stop h3 { color: #d93025; }
+        .card-caution h3 { color: #b06000; }
+        .card-go h3 { color: #188038; }
+        
+        .traffic-card ul { padding-left: 15px; margin: 0; font-size: 13px; color: #444; }
+        .traffic-card li { margin-bottom: 4px; }
+
+        /* BIG NUMBERS */
+        .numbers-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 30px; }
+        .number-card { background: #f8f9fa; padding: 20px; text-align: center; border-radius: 8px; border-left: 5px solid #1976d2; }
+        .number-val { display: block; font-size: 32px; font-weight: 900; color: #1976d2; }
+        .number-label { font-size: 12px; color: #666; text-transform: uppercase; font-weight: 700; letter-spacing: 0.5px; }
+
+        /* FOOTER DEL PÓSTER */
+        .poster-footer { background: #263238; color: white; padding: 20px 40px; margin-top: 20px; }
+        .poster-footer h3 { margin: 0 0 10px 0; color: #80cbc4; font-size: 16px; text-transform: uppercase; }
+        .poster-footer ul { padding-left: 20px; margin: 0; font-size: 14px; color: #cfd8dc; }
+        
+        /* DIAGRAMA MERMAID DENTRO DEL PÓSTER */
+        .poster-mermaid { margin-top: 30px; border-top: 2px dashed #eee; padding-top: 20px; }
+        .poster-mermaid h3 { text-align: center; color: #555; font-size: 14px; text-transform: uppercase; }
+
         /* BOTONES */
-        button { cursor: pointer; padding: 8px 15px; border-radius: 4px; border: none; background: white; font-weight: bold; box-shadow: 0 1px 3px rgba(0,0,0,0.2); }
-        button:hover { background: #f1f1f1; }
-        .btn-download { background-color: #4CAF50; color: white; text-decoration: none; padding: 8px 15px; border-radius: 4px; font-size: 14px; display: none; }
-        .btn-img-dl { background-color: #FF5722; color: white; margin-left: 10px; display: none; transition: 0.3s; }
-        .btn-img-dl:hover { background-color: #E64A19; transform: scale(1.05); }
+        button { cursor: pointer; padding: 8px 16px; border-radius: 4px; border: none; font-weight: 600; font-size: 13px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .btn-zoom { background: white; color: #333; }
+        .btn-pdf { background: #e53935; color: white; text-decoration: none; padding: 8px 16px; border-radius: 4px; font-size: 13px; display: none; }
+        .btn-img { background: #00897b; color: white; margin-left: 10px; display: none; }
+        .btn-img:hover { background: #00796b; }
 
-        /* CHAT */
-        #chat-container { display: flex; flex-direction: column; height: 100%; }
-        #chat-history { flex: 1; overflow-y: auto; margin-bottom: 10px; }
-        .msg { margin-bottom: 10px; padding: 12px; border-radius: 12px; max-width: 85%; }
-        .msg.user { background: #e8f0fe; align-self: flex-end; color: #1a73e8; }
-        .msg.ai { background: #fff; border: 1px solid #ddd; align-self: flex-start; }
-        .chat-input-area { display: flex; gap: 10px; padding-top: 10px; border-top: 1px solid #eee; }
-        #user-input { flex: 1; padding: 12px; border: 1px solid #ccc; border-radius: 20px; outline: none; }
+        /* Markdown Texto Normal */
+        .markdown-body { font-size: 15px; line-height: 1.6; color: #333; }
+        .markdown-body h2 { color: #1565c0; border-bottom: 2px solid #eee; margin-top: 30px; }
+        .markdown-body strong { color: #c62828; }
+
+        /* Chat */
+        #chat-history { height: 85%; overflow-y: auto; padding: 10px; }
+        .msg { padding: 10px 15px; border-radius: 10px; margin-bottom: 10px; font-size: 14px; max-width: 85%; }
+        .msg.user { background: #e3f2fd; color: #1565c0; align-self: flex-end; margin-left: auto; }
+        .msg.ai { background: #f5f5f5; color: #333; border: 1px solid #ddd; }
     </style>
 </head>
 <body>
 
-    <div id="drop-zone">📄 ARRASTRA TU PDF AQUÍ (V24: Mermaid Fix)</div>
+    <div id="drop-zone">📄 ARRASTRA GPC (V25: Póster Médico Pro)</div>
 
     <div class="main-container">
         <div class="pdf-section">
             <div class="pdf-toolbar">
-                <button onclick="ajustarZoom(-0.2)">➖ Zoom</button>
-                <span id="zoom-level" style="min-width: 50px; text-align: center;">100%</span>
-                <button onclick="ajustarZoom(0.2)">➕ Zoom</button>
-                <a id="btn-download" class="btn-download" download="documento.pdf">⬇️ PDF</a>
-                <button id="btn-img-dl" class="btn-img-dl" onclick="descargarInfografia()">📸 Guardar Infografía</button>
+                <button class="btn-zoom" onclick="ajustarZoom(-0.2)">➖</button>
+                <span id="zoom-level" style="color:white; font-size:12px; margin:0 10px;">100%</span>
+                <button class="btn-zoom" onclick="ajustarZoom(0.2)">➕</button>
+                <a id="btn-download" class="btn-pdf">⬇️ PDF</a>
+                <button id="btn-img-dl" class="btn-img" onclick="descargarPoster()">📸 Descargar Infografía</button>
             </div>
             <div id="pdf-container" class="pdf-scroll-container"></div>
         </div>
 
         <div class="right-panel">
             <div class="tabs-header">
-                <button class="tab-btn active" onclick="abrirPestana('tab-analisis')">📝 Análisis Técnico</button>
-                <button class="tab-btn" onclick="abrirPestana('tab-infografia')">🎨 Infografía Visual</button>
-                <button class="tab-btn" onclick="abrirPestana('tab-chat')">💬 Discusión</button>
+                <button class="tab-btn active" onclick="abrirPestana('tab-analisis')">📝 Análisis</button>
+                <button class="tab-btn" onclick="abrirPestana('tab-infografia')">🎨 Infografía (Póster)</button>
+                <button class="tab-btn" onclick="abrirPestana('tab-chat')">💬 Chat</button>
             </div>
             
             <div id="tab-analisis" class="tab-content active">
                 <div id="analisis-content" class="markdown-body">
-                    <p style="color:#666; text-align:center; margin-top:50px;">
-                        Esperando documento...
-                    </p>
+                    <div style="text-align:center; margin-top:60px; color:#999;">
+                        <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+                        <br><br>Sube una guía clínica para analizarla.
+                    </div>
                 </div>
             </div>
 
             <div id="tab-infografia" class="tab-content">
-                <div id="infografia-visual-container">
-                    <p style="color:#666; text-align:center; margin-top:50px;">
-                        Aquí aparecerá tu resumen visual descargable.
-                    </p>
+                <div id="infografia-visual-wrapper">
+                    <div id="infografia-visual-container">
+                        <div style="padding:50px; text-align:center; color:#999;">
+                            El póster visual aparecerá aquí tras el análisis.
+                        </div>
+                    </div>
                 </div>
-                <div id="mermaid-section-container" style="margin-top: 30px;"></div>
             </div>
 
             <div id="tab-chat" class="tab-content">
-                <div id="chat-container">
-                    <div id="chat-history"></div>
-                    <div class="chat-input-area">
-                        <input type="text" id="user-input" placeholder="Pregunta al experto..." onkeypress="if(event.key==='Enter') enviarMensaje()">
-                        <button onclick="enviarMensaje()">Enviar</button>
-                    </div>
+                <div id="chat-history"></div>
+                <div style="padding:10px; border-top:1px solid #eee; display:flex; gap:10px;">
+                    <input type="text" id="user-input" placeholder="Pregunta..." style="flex:1; padding:10px; border:1px solid #ddd; border-radius:20px; outline:none;" onkeypress="if(event.key==='Enter') enviarMensaje()">
+                    <button onclick="enviarMensaje()" style="background:#1976d2; color:white;">Enviar</button>
                 </div>
             </div>
         </div>
     </div>
 
     <script>
-        // --- INYECCIÓN DE CLAVE ---
         const API_KEY = "__API_KEY_PLACEHOLDER__"; 
-
-        // --- MODELOS ---
-        const MODEL_CANDIDATES = [
-            "gemini-2.0-flash", 
-            "gemini-2.5-flash",
-            "gemini-1.5-pro"
-        ];
+        const MODEL_CANDIDATES = ["gemini-2.0-flash", "gemini-2.5-flash", "gemini-1.5-pro"];
         let WORKING_MODEL = null;
-
         let pdfDoc = null, scale = 1.0, rotation = 0, globalPdfBase64 = null;
-        mermaid.initialize({ startOnLoad: false, theme: 'neutral' });
+        mermaid.initialize({ startOnLoad: false, theme: 'neutral', securityLevel: 'loose' });
 
-        // --- GESTIÓN DE PESTAÑAS ---
         function abrirPestana(id) {
             document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
             document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
             document.getElementById(id).classList.add('active');
             
-            // Gestión botones superiores
-            const btnImg = document.getElementById('btn-img-dl');
-            // Solo mostramos el botón de descarga si la infografía ya se ha generado (tiene título)
-            if(id === 'tab-infografia' && document.querySelector('.info-title')) {
-                btnImg.style.display = 'inline-block';
+            // Botón descarga solo en pestaña infografía y si hay contenido
+            const btn = document.getElementById('btn-img-dl');
+            const hasContent = document.querySelector('.poster-title');
+            if(id === 'tab-infografia' && hasContent) {
+                btn.style.display = 'inline-block';
             } else {
-                btnImg.style.display = 'none';
+                btn.style.display = 'none';
             }
-
-            // Highlight tabs visual
+            
+            // Highlight tabs
             if(id.includes('analisis')) document.querySelectorAll('.tab-btn')[0].classList.add('active');
             if(id.includes('infografia')) document.querySelectorAll('.tab-btn')[1].classList.add('active');
             if(id.includes('chat')) document.querySelectorAll('.tab-btn')[2].classList.add('active');
         }
 
-        // --- FUNCIÓN DE DESCARGA DE IMAGEN ---
-        function descargarInfografia() {
-            // Capturamos TANTO el póster COMO el diagrama de flujo
-            const containerPoster = document.getElementById('infografia-visual-container');
-            const containerMermaid = document.getElementById('mermaid-section-container');
-            
-            // Creamos un contenedor temporal para juntarlos
-            const combinedContainer = document.createElement('div');
-            combinedContainer.style.background = "white";
-            combinedContainer.style.padding = "20px";
-            // Clonamos los nodos para no moverlos del sitio original
-            combinedContainer.appendChild(containerPoster.cloneNode(true));
-            combinedContainer.appendChild(containerMermaid.cloneNode(true));
-            document.body.appendChild(combinedContainer); // Lo añadimos al DOM invisiblemente
-
-            html2canvas(combinedContainer, { scale: 2, useCORS: true }).then(canvas => {
-                const a = document.createElement('a');
-                a.href = canvas.toDataURL('image/png');
-                a.download = 'Resumen_Clinico_Completo.png';
-                a.click();
-                document.body.removeChild(combinedContainer); // Limpiamos
+        // --- DESCARGA HQ ---
+        function descargarPoster() {
+            const element = document.getElementById('infografia-visual-container');
+            // Forzamos opciones para mejorar calidad de texto
+            html2canvas(element, { 
+                scale: 2.5, // Super alta resolución
+                useCORS: true,
+                backgroundColor: "#ffffff"
+            }).then(canvas => {
+                const link = document.createElement('a');
+                link.download = 'Infografia_Medica_Pro.png';
+                link.href = canvas.toDataURL('image/png');
+                link.click();
             });
         }
 
-        // --- CARGA DE PDF ---
+        // --- PDF LOGIC ---
         const dropZone = document.getElementById('drop-zone');
         dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('dragover'); });
         dropZone.addEventListener('dragleave', () => { dropZone.classList.remove('dragover'); });
-        
         dropZone.addEventListener('drop', async (e) => {
             e.preventDefault(); dropZone.classList.remove('dragover');
             const file = e.dataTransfer.files[0];
             if(file && file.type === "application/pdf") {
-                dropZone.innerText = "⏳ Procesando...";
+                dropZone.innerHTML = "⏳ Analizando Evidencia...";
                 const fileURL = URL.createObjectURL(file);
                 document.getElementById('btn-download').href = fileURL;
                 document.getElementById('btn-download').style.display = 'inline-block';
@@ -258,150 +272,150 @@ html_template = """
         }
         function ajustarZoom(d) { if(pdfDoc) { scale = Math.max(0.2, scale + d); renderizarTodo(); } }
 
-        function limpiarMarkdown(t) { return t.replace(/```html|```|<!DOCTYPE html>|<html>|<\/html>|<head>[\s\S]*?<\/head>|<body>|<\/body>/gi, "").trim(); }
-        // Limpiador mejorado para Mermaid
-        function limpiarMermaid(t) { let l = t.replace(/```mermaid|```/gi, ""); const i = l.indexOf("graph TD"); if(i !== -1) l = l.substring(i); return l.trim(); }
+        function limpiarCodigo(t) {
+            // Elimina bloques markdown y texto conversacional
+            let s = t.replace(/```html|```/gi, "").trim();
+            // Si la IA añade texto antes del primer div, lo borramos
+            const primerDiv = s.indexOf("<div");
+            if(primerDiv > -1) s = s.substring(primerDiv);
+            return s;
+        }
 
-        // --- CEREBRO IA ---
+        function limpiarMermaid(t) {
+            let s = t.replace(/```mermaid|```/gi, "").trim();
+            const idx = s.indexOf("graph TD");
+            if(idx > -1) s = s.substring(idx);
+            return s;
+        }
+
         async function procesarIA() {
-            // FASE 1: ANÁLISIS TÉCNICO (Markdown)
-            dropZone.innerText = "🤖 Fase 1: Análisis...";
-            document.getElementById('analisis-content').innerHTML = "<div class='msg ai'>🧠 Diseccionando guía clínica (Modo Experto)...</div>";
-            
+            // 1. ANÁLISIS TÉCNICO (Markdown)
+            dropZone.innerText = "🤖 Fase 1: Extracción de Datos...";
             const promptAnalisis = `
-            # OBJETIVO
-            Destacando aspectos de Medicina Intensiva y Medicina Basada en la Evidencia. Realiza una disección técnica exhaustiva de la GPC.
-            # ESTRUCTURA (MARKDOWN)
-            1. Definiciones/Criterios
-            2. Algoritmo Agudo (Metas, Dosis)
-            3. Soporte Vital
-            4. Semáforo Evidencia
-            5. Poblaciones
-            6. Ingreso/Alta
-            * Tono profesional neutro.
+            Actúa como analista técnico médico. Sin saludos. Sin introducción.
+            Analiza el PDF y extrae: Definiciones, Algoritmo Agudo (Metas/Dosis), Soporte Vital, Semáforo Evidencia, Poblaciones.
+            Formato: Markdown técnico.
             `;
-            let resAnalisis = await intentarLlamadaRobusta(promptAnalisis);
-            if(resAnalisis) document.getElementById('analisis-content').innerHTML = marked.parse(limpiarMarkdown(resAnalisis));
+            let res1 = await llamarIA(promptAnalisis);
+            if(res1) document.getElementById('analisis-content').innerHTML = marked.parse(res1);
 
-            // FASE 2: INFOGRAFÍA VISUAL (HTML Estructurado)
-            dropZone.innerText = "🎨 Fase 2: Diseñando...";
-            const containerVisual = document.getElementById('infografia-visual-container');
-            containerVisual.innerHTML = "<div class='msg ai'>🎨 Maquetando infografía de alto impacto...</div>";
+            // 2. INFOGRAFÍA PÓSTER (HTML Estricto)
+            dropZone.innerText = "🎨 Fase 2: Generando Póster...";
+            const containerPoster = document.getElementById('infografia-visual-container');
+            containerPoster.innerHTML = "<div style='padding:40px; text-align:center;'>🎨 Diseñando layout gráfico...</div>";
 
-            const promptInfografiaHTML = `
-            Actúa como Diseñador Médico. Crea el contenido para una Infografía Visual de la guía.
-            Devuelve SOLO CÓDIGO HTML que siga ESTA ESTRUCTURA EXACTA (sin markdown):
+            const promptPoster = `
+            Eres un motor de renderizado HTML. Tu tarea es convertir los datos médicos del PDF en código HTML limpio para un póster.
             
-            <div class="info-header">
-                <h1 class="info-title">TITULO CORTO E IMPACTANTE</h1>
-                <p class="info-subtitle">Subtítulo / Población / Año</p>
+            REGLAS ESTRICTAS:
+            1. NO hables. NO saludes. NO digas "Aquí tienes el código".
+            2. Devuelve SOLO una cadena de HTML válida.
+            3. Usa EXACTAMENTE esta estructura de clases (ya tienen CSS definido):
+
+            <div class="poster-header">
+                <h1 class="poster-title">TITULO CLÍNICO CORTO</h1>
+                <div class="poster-tags"><span class="poster-tag">AÑO</span> <span class="poster-tag">SOCIEDAD</span></div>
+                <p class="poster-subtitle">Objetivo Principal</p>
             </div>
 
-            <div class="info-grid-semaforo">
-                <div class="info-box box-stop">
-                    <h3>🔴 STOP (No hacer)</h3>
-                    <ul><li>Práctica 1</li><li>Práctica 2</li></ul>
+            <div class="poster-body">
+                <div class="traffic-grid">
+                    <div class="traffic-card card-stop">
+                        <h3>⛔ STOP (No hacer)</h3>
+                        <ul><li>Práctica 1</li><li>Práctica 2</li></ul>
+                    </div>
+                    <div class="traffic-card card-caution">
+                        <h3>⚠️ PRECAUCIÓN</h3>
+                        <ul><li>Duda 1</li><li>Duda 2</li></ul>
+                    </div>
+                    <div class="traffic-card card-go">
+                        <h3>✅ GO (Estándar)</h3>
+                        <ul><li>Rec. Fuerte 1</li><li>Rec. Fuerte 2</li></ul>
+                    </div>
                 </div>
-                <div class="info-box box-caution">
-                    <h3>🟡 PRECAUCIÓN</h3>
-                    <ul><li>Área gris 1</li><li>Área gris 2</li></ul>
+
+                <div class="numbers-grid">
+                    <div class="number-card">
+                        <span class="number-val">CIFRA 1</span>
+                        <span class="number-label">Unidad/Contexto</span>
+                    </div>
+                    <div class="number-card">
+                        <span class="number-val">CIFRA 2</span>
+                        <span class="number-label">Unidad/Contexto</span>
+                    </div>
                 </div>
-                <div class="info-box box-go">
-                    <h3>🟢 GO (Hacer)</h3>
-                    <ul><li>Recomendación fuerte 1</li><li>Recomendación fuerte 2</li></ul>
-                </div>
+
+                <div id="mermaid-placeholder" class="poster-mermaid"></div>
             </div>
 
-            <div class="info-big-numbers-container">
-                <div class="info-big-number-item">
-                    <span class="info-number-val">DATOS</span>
-                    <span class="info-number-desc">Contexto</span>
-                </div>
-            </div>
-
-            <div class="info-footer">
-                <h3>🚀 TAKE HOME MESSAGES</h3>
-                <ul>
-                    <li>Mensaje 1.</li>
-                    <li>Mensaje 2.</li>
-                    <li>Mensaje 3.</li>
-                </ul>
+            <div class="poster-footer">
+                <h3>TAKE HOME MESSAGES</h3>
+                <ul><li>Mensaje 1</li><li>Mensaje 2</li></ul>
             </div>
             `;
+            
+            let htmlCode = await llamarIA(promptPoster);
+            
+            if(htmlCode) {
+                // Limpiamos cualquier "basura" que la IA haya puesto antes del HTML
+                htmlCode = limpiarCodigo(htmlCode);
+                containerPoster.innerHTML = htmlCode;
 
-            let resInfoHTML = await intentarLlamadaRobusta(promptInfografiaHTML);
-            if(resInfoHTML) {
-                containerVisual.innerHTML = limpiarMarkdown(resInfoHTML);
-                
-                // --- FASE 3: DIAGRAMA MERMAID (Con Prompt "Arquitecto Estricto") ---
-                document.getElementById('mermaid-section-container').innerHTML = "<hr><h3>🔄 Algoritmo de Flujo</h3><div id='mermaid-in'>Generando diagrama...</div>";
-                
-                // PROMPT MEJORADO PARA EVITAR ERRORES DE SINTAXIS
-                const promptMermaid = `
-                Actúa como un Arquitecto de Información. Crea un diagrama de flujo ESENCIAL y DE ALTO NIVEL del Algoritmo de Manejo Agudo de la guía.
-                
-                Reglas ESTRICTAS para el código Mermaid:
-                1. Usa SOLO 'graph TD'.
-                2. Usa IDs de nodo simples y cortos (A, B, C, D, E...).
-                3. IMPORTANTE: Pon COMILLAS DOBLES ("") alrededor de TODO el texto descriptivo de los nodos y las etiquetas de las líneas. 
-                   Ejemplo CORRECTO: A["Paciente Shock"] -->|"TAM < 65"| B["Iniciar NA"]
-                   Ejemplo INCORRECTO: A[Paciente Shock] -->|TAM < 65| B[Iniciar NA]
-                4. Mantén el diagrama simple, máximo 10-12 nodos principales. Evita textos muy largos.
-                5. Devuelve SOLO el código Mermaid, sin explicaciones.
-                `;
-                
-                let resMermaid = await llamarGemini(promptMermaid, WORKING_MODEL);
-                if(resMermaid && !resMermaid.startsWith("Error")) {
-                    const cleanMermaid = limpiarMermaid(resMermaid);
-                    // Verificación extra antes de renderizar
-                    if(cleanMermaid.startsWith("graph TD")) {
-                        document.getElementById('mermaid-in').innerHTML = `<div class="mermaid">${cleanMermaid}</div>`;
-                        try { mermaid.run(); } catch(e) { 
-                             document.getElementById('mermaid-in').innerHTML = `<div style="color:red; padding:10px; border:1px solid red;">Error de sintaxis en el gráfico generado por la IA. Inténtalo de nuevo.</div>`;
-                        }
-                    } else {
-                         document.getElementById('mermaid-in').innerHTML = "La IA no generó un gráfico válido.";
+                // 3. GRÁFICO MERMAID
+                const mermaidDiv = document.getElementById('mermaid-placeholder');
+                if(mermaidDiv) {
+                    mermaidDiv.innerHTML = "<h3>Algoritmo de Flujo</h3><div id='mermaid-graph'>Generando...</div>";
+                    const promptMermaid = `
+                    Crea un diagrama 'mermaid graph TD' MUY SIMPLE (max 8 nodos) del manejo agudo.
+                    REGLAS:
+                    1. SOLO código. Sin texto extra.
+                    2. Usa IDs cortos: A, B, C...
+                    3. TEXTOS SIEMPRE ENTRE COMILLAS: A["Texto"] --> B["Texto"]
+                    `;
+                    let mermaidCode = await llamarIA(promptMermaid);
+                    if(mermaidCode) {
+                        const cleanM = limpiarMermaid(mermaidCode);
+                        document.getElementById('mermaid-graph').innerHTML = `<div class="mermaid">${cleanM}</div>`;
+                        try { mermaid.run(); } catch(e){}
                     }
                 }
                 
-                dropZone.innerText = "✅ Listo";
-                
-                // Si estamos en la pestaña infografía, mostramos botón de descarga
+                dropZone.innerText = "✅ Proceso Finalizado";
                 if(document.getElementById('tab-infografia').classList.contains('active')) {
                     document.getElementById('btn-img-dl').style.display = 'inline-block';
                 }
             }
         }
 
-        async function intentarLlamadaRobusta(prompt) {
-            if (WORKING_MODEL) return await llamarGemini(prompt, WORKING_MODEL);
+        async function llamarIA(prompt) {
+            if (WORKING_MODEL) return await fetchGemini(prompt, WORKING_MODEL);
             for (let modelo of MODEL_CANDIDATES) {
-                const res = await llamarGemini(prompt, modelo);
+                const res = await fetchGemini(prompt, modelo);
                 if (res && !res.startsWith("Error")) { WORKING_MODEL = modelo; return res; }
             }
             return null;
         }
 
-        async function enviarMensaje() {
-            const i = document.getElementById('user-input'), h = document.getElementById('chat-history');
-            const t = i.value; if(!t) return;
-            h.innerHTML += `<div class="msg user">${t}</div>`; i.value = ""; h.scrollTop = h.scrollHeight;
-            const resRaw = await intentarLlamadaRobusta(`Respuesta técnica breve: ${t}`);
-            h.innerHTML += resRaw ? `<div class="msg ai">${marked.parse(limpiarMarkdown(resRaw))}</div>` : `<div class="msg ai" style="color:red">Error.</div>`;
-            h.scrollTop = h.scrollHeight;
-        }
-
-        async function llamarGemini(prompt, modelo) {
-            if(!globalPdfBase64) return "Error: Sin PDF";
+        async function fetchGemini(prompt, modelo) {
+            if(!globalPdfBase64) return null;
             try {
                 const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent?key=${API_KEY}`, {
                     method: 'POST', headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({ contents: [{ parts: [{ text: prompt }, { inline_data: { mime_type: "application/pdf", data: globalPdfBase64 } }] }] })
                 });
                 const d = await r.json();
-                if(d.error) return "Error: " + d.error.message;
+                if(d.error) return "Error";
                 return d.candidates[0].content.parts[0].text;
-            } catch(e) { return "Error Red"; }
+            } catch(e) { return "Error"; }
+        }
+
+        async function enviarMensaje() {
+            const i = document.getElementById('user-input');
+            const h = document.getElementById('chat-history');
+            const t = i.value; if(!t) return;
+            h.innerHTML += `<div class="msg user">${t}</div>`; i.value="";
+            const res = await llamarIA(`Respuesta técnica breve: ${t}`);
+            h.innerHTML += `<div class="msg ai">${res ? marked.parse(res) : "Error"}</div>`;
         }
     </script>
 </body>
