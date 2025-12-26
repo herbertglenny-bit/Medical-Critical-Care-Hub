@@ -1,18 +1,3 @@
-¡Cambio de rumbo recibido! Pasamos de una "Clase para Residentes" (PowerPoint) a un "Análisis Técnico de Alta Complejidad" (Jefe de Servicio).
-
-Este nuevo prompt es mucho más potente para uso clínico real, ya que busca dosis, targets hemodinámicos y semáforos de evidencia.
-
-Aquí tienes la Versión 18 (Jefe de Servicio UCI). He actualizado el código para que la IA siga estrictamente tu nueva estructura de 6 puntos.
-
-Instrucciones:
-Ve a app.py.
-
-Borra todo.
-
-Pega el código. (La seguridad sigue intacta, no toques los Secrets).
-
-Python
-
 import streamlit as st
 import streamlit.components.v1 as components
 
