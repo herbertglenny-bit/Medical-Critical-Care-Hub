@@ -17,7 +17,7 @@ html_template = """
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Estación Médica V19 (Neutro)</title>
+    <title>Estación Médica V20</title>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -200,10 +200,10 @@ html_template = """
             dropZone.innerText = "🤖 Analizando...";
             document.getElementById('analisis-content').innerHTML = "<div class='msg ai'>🧠 <b>Realizando análisis técnico profundo...</b><br>Identificando criterios, targets y evidencia GRADE...</div>";
             
-            // --- PROMPT NEUTRO Y TÉCNICO ---
+            // --- PROMPT MODIFICADO SEGÚN TU PETICIÓN ---
             const prompt = `
             # OBJETIVO
-            Actúa como un sistema experto de Inteligencia Artificial especializado en Medicina Intensiva y Medicina Basada en la Evidencia. Realiza una disección técnica exhaustiva de la Guía de Práctica Clínica proporcionada.
+            Destacando aspectos de Medicina Intensiva y Medicina Basada en la Evidencia. Realiza una disección técnica exhaustiva de la Guía de Práctica Clínica proporcionada.
 
             # TONO Y ESTILO
             * **Estrictamente profesional, neutro y académico.**
