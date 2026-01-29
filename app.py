@@ -3,6 +3,8 @@ import streamlit.components.v1 as components
 import sqlite3
 import base64
 from datetime import datetime
+import google.generativeai as genai
+import time
 
 # Configuración: Layout Wide
 st.set_page_config(page_title="Biblioteca Médica IA", layout="wide", initial_sidebar_state="expanded")
@@ -64,16 +66,16 @@ def borrar_guia(id_guia):
     conn.commit()
     conn.close()
 
-# Inicializar DB al arranque
+# Inicializar DB
 init_db()
 
-# --- INTERFAZ HTML/JS (El motor visual) ---
+# --- INTERFAZ HTML/JS (Motor Visual) ---
 html_template = """
 <!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Estación Médica V41</title>
+    <title>Estación Médica V42</title>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -82,7 +84,7 @@ html_template = """
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
     </script>
     <style>
-        /* CSS V40 Integrado */
+        /* CSS Integrado V40 */
         * { box-sizing: border-box; }
         body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; font-family: 'Segoe UI', Roboto, sans-serif; background: #202124; }
         .main-container { display: flex; width: 100vw; height: 100vh; }
@@ -101,7 +103,7 @@ html_template = """
         .tab-content { display: none; width: 100%; height: 100%; overflow-y: auto; }
         .tab-content.active { display: block; }
 
-        /* MARKDOWN & INFOGRAFÍA ESTILOS (V31/V40) */
+        /* MARKDOWN & INFOGRAFÍA ESTILOS */
         .markdown-wrapper { padding: 40px; max-width: 900px; margin: auto; background: white; min-height: 100%; }
         .markdown-body { font-size: 16px; line-height: 1.7; color: #2c3e50; padding-bottom: 50px; }
         .markdown-body h1 { color: #1565c0; border-bottom: 2px solid #eee; margin-top: 0; }
@@ -198,32 +200,22 @@ html_template = """
         let pdfDoc = null, scale = 1.0, rotation = 0, globalPdfBase64 = null;
         mermaid.initialize({ startOnLoad: false, theme: 'neutral', securityLevel: 'loose' });
 
-        // --- DATOS INYECTADOS DESDE PYTHON ---
         const DATA_PDF = "__PDF_DATA__"; 
         const DATA_ANALISIS = `__ANALISIS_DATA__`;
         const DATA_INFO = `__INFO_DATA__`;
         const DATA_MERMAID = `__MERMAID_DATA__`;
 
-        // INICIO AUTOMÁTICO
         window.onload = function() {
             if(DATA_PDF && DATA_PDF !== "null") {
                 globalPdfBase64 = DATA_PDF;
                 cargarPDF(globalPdfBase64);
-                
-                // Cargar contenidos si existen
-                if(DATA_ANALISIS && DATA_ANALISIS !== "null") 
-                    document.getElementById('analisis-content').innerHTML = marked.parse(DATA_ANALISIS);
-                
+                if(DATA_ANALISIS && DATA_ANALISIS !== "null") document.getElementById('analisis-content').innerHTML = marked.parse(DATA_ANALISIS);
                 if(DATA_INFO && DATA_INFO !== "null") {
                     document.getElementById('infografia-visual-container').innerHTML = DATA_INFO;
-                    // Inyectar gráfico
                     if(DATA_MERMAID && DATA_MERMAID !== "null") {
                         setTimeout(() => {
                             const target = document.getElementById('mermaid-placeholder');
-                            if(target) {
-                                target.innerHTML = `<div class="mermaid">${DATA_MERMAID}</div>`;
-                                mermaid.run();
-                            }
+                            if(target) { target.innerHTML = `<div class="mermaid">${DATA_MERMAID}</div>`; mermaid.run(); }
                         }, 500);
                         document.getElementById('btn-save-img').style.display = 'block';
                     }
@@ -236,14 +228,11 @@ html_template = """
         function abrirPestana(id) {
             document.querySelectorAll('.tab-content').forEach(el => el.style.display = 'none');
             document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-            
             const tab = document.getElementById(id);
             tab.style.display = (id === 'tab-chat') ? 'flex' : 'block';
-            
             if(id.includes('analisis')) document.querySelectorAll('.tab-btn')[0].classList.add('active');
             if(id.includes('infografia')) document.querySelectorAll('.tab-btn')[1].classList.add('active');
             if(id.includes('chat')) document.querySelectorAll('.tab-btn')[2].classList.add('active');
-            
             const btn = document.getElementById('btn-save-img');
             const hasContent = document.querySelector('.poster-title');
             btn.style.display = (id === 'tab-infografia' && hasContent) ? 'block' : 'none';
@@ -271,29 +260,23 @@ html_template = """
         }
         function ajustarZoom(d) { if(pdfDoc) { scale = Math.max(0.2, scale + d); renderizarTodo(); } }
 
-        // --- CHATBOT ---
         async function enviarMensaje() {
-            const i = document.getElementById('user-input');
-            const h = document.getElementById('chat-history');
+            const i = document.getElementById('user-input'), h = document.getElementById('chat-history');
             const t = i.value; if(!t) return;
-            
             h.innerHTML += `<div class="msg user">${t}</div>`; i.value=""; h.scrollTop = h.scrollHeight;
             const loadingId = "load"+Date.now();
             h.innerHTML += `<div id="${loadingId}" class="msg ai" style="color:#888">...</div>`;
-            
             try {
                 const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${API_KEY}`, {
                     method: 'POST', headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ contents: [{ parts: [{ text: "Actúa como médico experto. Responde brevemente sobre la guía adjunta: " + t }, { inline_data: { mime_type: "application/pdf", data: globalPdfBase64 } }] }] })
+                    body: JSON.stringify({ contents: [{ parts: [{ text: "Responde como médico experto. Breve y técnico: " + t }, { inline_data: { mime_type: "application/pdf", data: globalPdfBase64 } }] }] })
                 });
                 const d = await r.json();
                 document.getElementById(loadingId).remove();
                 if(d.error) throw new Error(d.error.message);
                 const text = d.candidates[0].content.parts[0].text;
                 h.innerHTML += `<div class="msg ai">${marked.parse(text)}</div>`;
-            } catch(e) {
-                document.getElementById(loadingId).innerHTML = "Error de red.";
-            }
+            } catch(e) { document.getElementById(loadingId).innerHTML = "Error de red."; }
             h.scrollTop = h.scrollHeight;
         }
 
@@ -308,120 +291,100 @@ html_template = """
 </html>
 """
 
-# --- LÓGICA DE STREAMLIT ---
-
-# Sidebar para Navegación
+# --- SIDEBAR & LOGIC ---
 with st.sidebar:
     st.header("🏥 Biblioteca")
     modo_admin = st.checkbox("Modo Administrador")
-    
     st.divider()
-    
-    # Lista de Guías
     guias = obtener_guias()
-    if not guias:
-        st.info("No hay guías guardadas.")
+    if not guias: st.info("Biblioteca vacía.")
     
-    selected_guia_id = None
-    
-    # Mostrar botones de guías
     for g_id, g_titulo, g_fecha in guias:
         col1, col2 = st.columns([0.8, 0.2])
         if col1.button(f"📄 {g_titulo}", key=f"btn_{g_id}", use_container_width=True):
             st.session_state['active_guide_id'] = g_id
             st.rerun()
-        
         if modo_admin:
             if col2.button("❌", key=f"del_{g_id}"):
                 borrar_guia(g_id)
                 st.rerun()
 
-# Lógica Principal
+# PROCESAMIENTO PYTHON
 if modo_admin:
-    st.title("⚙️ Panel de Carga de Guías")
+    st.title("⚙️ Administrador: Cargar Nueva Guía")
+    uploaded_file = st.file_uploader("Subir PDF", type="pdf")
     
-    # 1. Subida
-    uploaded_file = st.file_uploader("Subir Guía (PDF)", type="pdf")
-    
-    if uploaded_file:
-        # Procesar solo si se pide
-        if st.button("🚀 Procesar con IA"):
-            with st.spinner("Analizando documento (puede tardar 30s)..."):
-                import google.generativeai as genai
-                import time
-                
-                genai.configure(api_key=API_KEY)
-                model = genai.GenerativeModel('gemini-1.5-flash')
-                
-                pdf_bytes = uploaded_file.read()
-                
-                # Paso 1: Análisis Texto
-                try:
-                    prompt_analisis = "ERES UN MOTOR DE DATOS. EMPIEZA DIRECTO CON EL TÍTULO (#). Analiza: 1.Definiciones 2.Algoritmo 3.Soporte 4.Semáforo 5.Poblaciones."
-                    res1 = model.generate_content([{'mime_type': 'application/pdf', 'data': pdf_bytes}, prompt_analisis])
-                    analisis_txt = res1.text
-                    
-                    time.sleep(3) # Pausa seguridad
-                    
-                    # Paso 2: HTML
-                    prompt_html = """Genera SOLO HTML para PÓSTER MÉDICO (Diseño V31). 
-                    <div class="poster-header"><h1 class="poster-title">TITULO</h1><div class="poster-meta">META</div></div>
-                    <div class="poster-body">...contenido estructurado...<div id="mermaid-placeholder" class="poster-mermaid"></div></div>
-                    <div class="poster-footer">...</div>"""
-                    res2 = model.generate_content([{'mime_type': 'application/pdf', 'data': pdf_bytes}, prompt_html])
-                    info_html = res2.text.replace("```html", "").replace("```", "")
-                    
-                    time.sleep(3) # Pausa seguridad
-                    
-                    # Paso 3: Mermaid
-                    res3 = model.generate_content([{'mime_type': 'application/pdf', 'data': pdf_bytes}, "Crea 'mermaid graph TD' SIMPLE. Solo código."])
-                    mermaid_code = res3.text.replace("```mermaid", "").replace("```", "")
-                    
-                    # Guardar en Session State temporalmente
-                    st.session_state['temp_upload'] = {
-                        'titulo': uploaded_file.name,
-                        'bytes': pdf_bytes,
-                        'analisis': analisis_txt,
-                        'html': info_html,
-                        'mermaid': mermaid_code
-                    }
-                    st.success("Procesamiento completado. Revisa y guarda.")
-                    
-                except Exception as e:
-                    st.error(f"Error IA: {str(e)}")
+    if uploaded_file and st.button("🚀 Procesar con IA"):
+        with st.spinner("Procesando... esto puede tardar unos segundos..."):
+            genai.configure(api_key=API_KEY)
+            
+            # --- FUNCIÓN DE SELECCIÓN DE MODELO ROBUSTA ---
+            def get_generative_model():
+                # Lista de candidatos en orden de preferencia
+                candidates = ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-pro"]
+                for model_name in candidates:
+                    try:
+                        # Probamos instanciar el modelo
+                        m = genai.GenerativeModel(model_name)
+                        return m, model_name
+                    except:
+                        continue
+                st.error("No se encontró ningún modelo compatible. Actualiza google-generativeai.")
+                st.stop()
+            
+            model, model_name = get_generative_model()
+            # -----------------------------------------------
 
-        # Mostrar Botón Guardar si hay algo procesado
-        if 'temp_upload' in st.session_state:
-            with st.expander("Ver Vista Previa de Datos Extraídos"):
-                st.write(st.session_state['temp_upload']['analisis'][:500] + "...")
+            pdf_bytes = uploaded_file.read()
             
-            titulo_final = st.text_input("Título para la Biblioteca", value=st.session_state['temp_upload']['titulo'])
-            
-            if st.button("💾 Guardar en Biblioteca"):
-                guardar_guia(
-                    titulo_final,
-                    st.session_state['temp_upload']['bytes'],
-                    st.session_state['temp_upload']['analisis'],
-                    st.session_state['temp_upload']['html'],
-                    st.session_state['temp_upload']['mermaid']
-                )
-                del st.session_state['temp_upload']
-                st.success("¡Guía guardada en la base de datos!")
-                st.rerun()
+            try:
+                # 1. Análisis
+                prompt1 = "ERES UN MOTOR DE DATOS. EMPIEZA DIRECTO CON EL TÍTULO (#). Analiza: 1.Definiciones 2.Algoritmo 3.Soporte 4.Semáforo 5.Poblaciones."
+                res1 = model.generate_content([{'mime_type': 'application/pdf', 'data': pdf_bytes}, prompt1])
+                analisis_txt = res1.text
+                
+                # 2. HTML
+                prompt2 = """Genera SOLO HTML para PÓSTER MÉDICO (Diseño V31). 
+                <div class="poster-header"><h1 class="poster-title">TITULO</h1><div class="poster-meta">META</div></div>
+                <div class="poster-body">...contenido estructurado...<div id="mermaid-placeholder" class="poster-mermaid"></div></div>
+                <div class="poster-footer">...</div>"""
+                res2 = model.generate_content([{'mime_type': 'application/pdf', 'data': pdf_bytes}, prompt2])
+                info_html = res2.text.replace("```html", "").replace("```", "")
+                
+                # 3. Mermaid
+                res3 = model.generate_content([{'mime_type': 'application/pdf', 'data': pdf_bytes}, "Crea 'mermaid graph TD' SIMPLE. Solo código."])
+                mermaid_code = res3.text.replace("```mermaid", "").replace("```", "")
+                
+                st.session_state['temp_upload'] = {
+                    'titulo': uploaded_file.name,
+                    'bytes': pdf_bytes,
+                    'analisis': analisis_txt,
+                    'html': info_html,
+                    'mermaid': mermaid_code
+                }
+                st.success(f"Procesado con éxito usando {model_name}")
+                
+            except Exception as e:
+                st.error(f"Error IA: {str(e)}")
+
+    if 'temp_upload' in st.session_state:
+        st.write("---")
+        titulo_final = st.text_input("Título", value=st.session_state['temp_upload']['titulo'])
+        if st.button("💾 Guardar en Biblioteca"):
+            guardar_guia(titulo_final, st.session_state['temp_upload']['bytes'], st.session_state['temp_upload']['analisis'], st.session_state['temp_upload']['html'], st.session_state['temp_upload']['mermaid'])
+            del st.session_state['temp_upload']
+            st.success("Guardado.")
+            st.rerun()
 
 else:
-    # MODO USUARIO (VIEWER)
     if 'active_guide_id' in st.session_state:
         guia = obtener_guia_por_id(st.session_state['active_guide_id'])
         if guia:
-            # Desempaquetar DB
-            # id, titulo, fecha, blob, analisis, html, mermaid
             g_pdf_b64 = base64.b64encode(guia[3]).decode('utf-8')
-            g_analisis = guia[4].replace("`", "\`").replace("${", "\${") # Escape para JS
+            g_analisis = guia[4].replace("`", "\`").replace("${", "\${")
             g_html = guia[5].replace("`", "\`")
             g_mermaid = guia[6].replace("`", "\`")
             
-            # Inyectar datos en el HTML template
             final_html = html_template.replace("__API_KEY__", API_KEY)
             final_html = final_html.replace("__PDF_DATA__", g_pdf_b64)
             final_html = final_html.replace("__ANALISIS_DATA__", g_analisis)
@@ -429,8 +392,6 @@ else:
             final_html = final_html.replace("__MERMAID_DATA__", g_mermaid)
             
             components.html(final_html, height=1000, scrolling=False)
-        else:
-            st.error("Error al cargar la guía.")
     else:
-        st.title("Bienvenido a la Estación Médica")
-        st.info("👈 Selecciona una guía del menú lateral para comenzar.")
+        st.title("Bienvenido")
+        st.info("👈 Selecciona una guía.")
