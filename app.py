@@ -375,4 +375,29 @@ html_template = """
         function limpiarTexto(t) { return t.replace(/```html|```/gi, "").trim(); }
         function limpiarMermaid(t) { let l = t.replace(/```mermaid|```/gi, ""); const i = l.indexOf("graph TD"); if(i !== -1) l = l.substring(i); return l.trim(); }
 
-        async
+        async function enviarMensaje() {
+            const i = document.getElementById('user-input');
+            const h = document.getElementById('chat-history');
+            const t = i.value; if(!t) return;
+            h.innerHTML += `<div class="msg user">${t}</div>`; i.value=""; h.scrollTop = h.scrollHeight;
+            const res = await llamarIA(`Respuesta técnica breve: ${t}`);
+            h.innerHTML += `<div class="msg ai">${res ? marked.parse(limpiarTexto(res)) : "Error"}</div>`;
+            h.scrollTop = h.scrollHeight;
+        }
+
+        function descargarPoster() {
+            const el = document.getElementById('infografia-visual-container');
+            html2canvas(el, { scale: 2.5, backgroundColor: "#ffffff" }).then(canvas => {
+                const a = document.createElement('a');
+                a.download = 'Infografia_Medica.png';
+                a.href = canvas.toDataURL('image/png');
+                a.click();
+            });
+        }
+    </script>
+</body>
+</html>
+"""
+
+final_html = html_template.replace("__API_KEY_PLACEHOLDER__", API_KEY)
+components.html(final_html, height=1000, scrolling=True)
