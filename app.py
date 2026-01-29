@@ -16,12 +16,20 @@ except (FileNotFoundError, KeyError):
     st.error("⚠️ Error: Falta 'GEMINI_API_KEY' en Secrets.")
     st.stop()
 
-# --- DIAGNÓSTICO DE VERSIÓN (NUEVO) ---
-version_lib = genai.__version__
-st.sidebar.info(f"📚 Librería IA Versión: {version_lib}")
-# Si la versión es vieja, avisamos
-if version_lib < "0.7.0":
-    st.sidebar.error("⚠️ VERSIÓN OBSOLETA. El archivo requirements.txt no se ha leído bien.")
+# --- EL CHIVATO (DIAGNÓSTICO) ---
+# Esto nos dirá la verdad sobre qué está instalado
+version_actual = genai.__version__
+
+with st.sidebar:
+    st.divider()
+    st.subheader("🕵️‍♂️ DIAGNÓSTICO TÉCNICO")
+    st.info(f"Versión Librería Google: {version_actual}")
+    
+    if version_actual < "0.7.0":
+        st.error("❌ ERROR CRÍTICO: La librería es muy antigua. El archivo 'requirements.txt' no se está leyendo o tiene el nombre mal escrito.")
+    else:
+        st.success("✅ La librería está actualizada. El problema es otro.")
+    st.divider()
 
 # --- BASE DE DATOS ---
 def init_db():
@@ -70,7 +78,7 @@ html_template = """
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Estación Médica V44</title>
+    <title>Estación Médica V45</title>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -165,7 +173,8 @@ html_template = """
     </div>
     <script>
         const API_KEY = "__API_KEY__"; 
-        const MODELS = ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-pro"];
+        // V45: Lista actualizada con nombres explícitos y modernos
+        const MODELS = ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-1.0-pro"];
         let pdfDoc = null, scale = 1.0, rotation = 0, globalPdfBase64 = null;
         mermaid.initialize({ startOnLoad: false, theme: 'neutral', securityLevel: 'loose' });
         const DATA_PDF = "__PDF_DATA__"; 
@@ -230,7 +239,6 @@ html_template = """
             const loadingId = "load"+Date.now();
             h.innerHTML += `<div id="${loadingId}" class="msg ai" style="color:#888">...</div>`;
             
-            // INTENTO ROBUSTO DESDE JS
             async function tryFetch(prompt, attempts = 0) {
                 if (attempts >= MODELS.length) throw new Error("Todos los modelos fallaron.");
                 const currentModel = MODELS[attempts];
@@ -294,10 +302,10 @@ if modo_admin:
             genai.configure(api_key=API_KEY)
             pdf_bytes = uploaded_file.read()
             
-            # --- FUNCIÓN DE SEGURIDAD V44 ---
+            # --- FUNCIÓN DE SEGURIDAD V45 ---
             def try_generate(prompt_text, file_bytes):
-                # INTENTAMOS TODOS LOS MODELOS POSIBLES
-                models_to_try = ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-pro", "models/gemini-1.5-flash", "models/gemini-pro"]
+                # Probamos los nombres viejos y nuevos
+                models_to_try = ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-1.0-pro", "gemini-pro"]
                 last_error = ""
                 for m_name in models_to_try:
                     try:
@@ -312,7 +320,7 @@ if modo_admin:
             
             try:
                 analisis_txt, used_model = try_generate("ERES UN MOTOR DE DATOS. EMPIEZA DIRECTO CON EL TÍTULO (#). Analiza: 1.Definiciones 2.Algoritmo 3.Soporte 4.Semáforo 5.Poblaciones.", pdf_bytes)
-                st.info(f"Análisis completado con: {used_model}") # Feedback visual
+                st.info(f"Análisis completado con: {used_model}")
                 
                 info_html, _ = try_generate("""Genera SOLO HTML para PÓSTER MÉDICO (Diseño V31). 
                 <div class="poster-header"><h1 class="poster-title">TITULO</h1><div class="poster-meta">META</div></div>
