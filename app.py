@@ -17,7 +17,7 @@ html_template = """
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Estación Médica V37 (Ironclad)</title>
+    <title>Estación Médica V38 (Visual Feedback)</title>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -47,8 +47,9 @@ html_template = """
         .tab-content { display: none; width: 100%; }
         .tab-content.active { display: block; }
 
-        /* STATUS BAR (CRÍTICO PARA UX) */
-        #status-bar { padding: 10px; background: #fff9c4; color: #f57f17; text-align: center; font-weight: bold; font-size: 13px; border-bottom: 1px solid #fff176; display: none; }
+        /* STATUS BAR MEJORADO */
+        #status-bar { padding: 12px; background: #e3f2fd; color: #1565c0; text-align: center; font-weight: bold; font-size: 13px; border-bottom: 1px solid #bbdefb; display: none; transition: all 0.3s; }
+        .status-error { background: #ffebee !important; color: #c62828 !important; border-bottom: 1px solid #ef9a9a !important; }
 
         /* --- MARKDOWN --- */
         .markdown-wrapper { padding: 40px; max-width: 900px; margin: auto; background: white; min-height: 100%; }
@@ -97,7 +98,6 @@ html_template = """
         .msg { padding: 12px 16px; border-radius: 12px; margin-bottom: 12px; font-size: 14px; max-width: 85%; }
         .msg.user { background: #e3f2fd; color: #1565c0; align-self: flex-end; }
         .msg.ai { background: #fff; border: 1px solid #eee; align-self: flex-start; }
-        .msg.loading { color: #888; font-style: italic; }
     </style>
 </head>
 <body>
@@ -163,7 +163,14 @@ html_template = """
 
     <script>
         const API_KEY = "__API_KEY_PLACEHOLDER__"; 
-        const MODEL_CANDIDATES = ["gemini-2.0-flash", "gemini-2.5-flash", "gemini-1.5-pro"];
+        
+        // --- V38: OPTIMIZACIÓN DE MODELOS ---
+        // Ponemos el modelo Flash (el más rápido y con mayor límite) PRIMERO.
+        const MODEL_CANDIDATES = [
+            "gemini-1.5-flash", 
+            "gemini-2.0-flash-exp", 
+            "gemini-1.5-pro"
+        ];
         let WORKING_MODEL = null;
         let pdfDoc = null, scale = 1.0, rotation = 0, globalPdfBase64 = null;
         mermaid.initialize({ startOnLoad: false, theme: 'neutral', securityLevel: 'loose' });
@@ -193,14 +200,15 @@ html_template = """
             if(file && file.type === "application/pdf") {
                 dropZone.style.display = "none";
                 document.getElementById('pdf-container').style.display = "block"; 
-                document.getElementById('analisis-content').innerHTML = "<div style='text-align:center; margin-top:50px;'>🧠 <b>Esperando turno...</b></div>";
-                document.getElementById('infografia-visual-container').innerHTML = "<div style='padding:80px; text-align:center; color:#999;'>🎨 <b>Esperando turno...</b></div>";
+                document.getElementById('analisis-content').innerHTML = "<div style='text-align:center; margin-top:50px;'>🧠 <b>Esperando turno de procesamiento...</b></div>";
+                document.getElementById('infografia-visual-container').innerHTML = "<div style='padding:80px; text-align:center; color:#999;'>🎨 <b>En cola...</b></div>";
+                
                 const fileURL = URL.createObjectURL(file);
                 document.getElementById('btn-download').href = fileURL;
                 document.getElementById('btn-download').style.display = 'inline-block';
                 cargarPDF(fileURL);
                 const reader = new FileReader();
-                reader.onload = async () => { globalPdfBase64 = reader.result.split(',')[1]; iniciarSecuenciaBlindada(); };
+                reader.onload = async () => { globalPdfBase64 = reader.result.split(',')[1]; iniciarSecuenciaRobusta(); };
                 reader.readAsDataURL(file);
             }
         });
@@ -221,45 +229,42 @@ html_template = """
         }
         function ajustarZoom(d) { if(pdfDoc) { scale = Math.max(0.2, scale + d); renderizarTodo(); } }
 
-        // --- SECUENCIA BLINDADA (V37) ---
-        async function iniciarSecuenciaBlindada() {
+        // --- SECUENCIA CON FEEDBACK VISUAL (V38) ---
+        async function iniciarSecuenciaRobusta() {
             const sb = document.getElementById('status-bar');
+            sb.className = ""; // Reset errors
             sb.style.display = 'block';
             
-            // PASO 1: ANÁLISIS DE TEXTO
-            sb.innerText = "🧠 Paso 1/3: Analizando Evidencia...";
-            sb.style.backgroundColor = "#e3f2fd";
-            await procesarAnalisisTexto(); // Esto espera a que termine
+            // PASO 1: ANÁLISIS
+            sb.innerText = "🧠 Paso 1/3: Analizando Documento...";
+            await procesarAnalisisTexto();
             
-            // COOLDOWN OBLIGATORIO (5 SEGUNDOS)
-            for(let i=5; i>0; i--) {
-                sb.innerText = `⏳ Enfriando motores IA para evitar bloqueo (${i}s)...`;
-                sb.style.backgroundColor = "#fff3e0";
-                await new Promise(r => setTimeout(r, 1000));
-            }
+            // COOLDOWN DE SEGURIDAD
+            sb.innerText = "⏳ Sincronizando con Google AI (Espera 4s)...";
+            await new Promise(r => setTimeout(r, 4000));
 
             // PASO 2: INFOGRAFÍA
-            sb.innerText = "🎨 Paso 2/3: Diseñando Infografía...";
-            sb.style.backgroundColor = "#e8f5e9";
+            sb.innerText = "🎨 Paso 2/3: Generando Póster Visual...";
             await procesarInfografiaVisual();
 
             // FIN
-            sb.innerText = "✅ Procesos Completados";
+            sb.innerText = "✅ Todo Listo";
             setTimeout(() => { sb.style.display = 'none'; }, 3000);
         }
 
-        // --- HILO 1: ANÁLISIS ---
         async function procesarAnalisisTexto() {
             const prompt = `
-            ERES UN MOTOR DE DATOS. PROHIBIDO SALUDAR O PRESENTARSE.
-            TU RESPUESTA DEBE EMPEZAR INMEDIATAMENTE CON EL TÍTULO EN MARKDOWN (#).
+            ERES UN MOTOR DE DATOS. PROHIBIDO SALUDAR. EMPIEZA DIRECTO CON EL TÍTULO (# Título).
             Analiza la Guía: 1. Definiciones 2. Algoritmo Agudo 3. Soporte Vital 4. Semáforo Evidencia 5. Poblaciones.
             `;
             const res = await llamarIA(prompt);
-            if(res) document.getElementById('analisis-content').innerHTML = marked.parse(limpiarTexto(res));
+            if(res && !res.startsWith("Error")) {
+                document.getElementById('analisis-content').innerHTML = marked.parse(limpiarTexto(res));
+            } else {
+                mostrarError("Fallo en Análisis: " + res);
+            }
         }
 
-        // --- HILO 2: INFOGRAFÍA ---
         async function procesarInfografiaVisual() {
             const promptPoster = `
             Genera HTML para PÓSTER MÉDICO (Diseño V31). SOLO HTML.
@@ -283,17 +288,16 @@ html_template = """
             `;
             
             const html = await llamarIA(promptPoster);
-            if(html) {
+            if(html && !html.startsWith("Error")) {
                 document.getElementById('infografia-visual-container').innerHTML = limpiarTexto(html);
                 
-                // Pausa antes del gráfico
-                await new Promise(r => setTimeout(r, 2000));
-                
+                // Gráfico (Paso 3 implícito)
                 const target = document.getElementById('mermaid-placeholder');
                 if(target) {
                     target.innerHTML = "Generando gráfico...";
+                    await new Promise(r => setTimeout(r, 1500)); // Pequeña pausa extra
                     const mer = await llamarIA(`Crea 'mermaid graph TD' SIMPLE (max 8 nodos). TEXTOS ENTRE COMILLAS DOBLES. Solo código.`);
-                    if(mer) {
+                    if(mer && !mer.startsWith("Error")) {
                         target.innerHTML = `<div class="mermaid">${limpiarMermaid(mer)}</div>`;
                         try { mermaid.run(); } catch(e){}
                     }
@@ -301,24 +305,34 @@ html_template = """
                 if(document.getElementById('tab-infografia').classList.contains('active')) {
                     document.getElementById('btn-save-img').style.display = 'block';
                 }
+            } else {
+                mostrarError("Fallo en Infografía: " + html);
             }
         }
 
-        // --- MOTOR IA CON REINTENTO INFINITO (V37) ---
+        // --- MOTOR IA CON RETRY Y FEEDBACK VISUAL ---
         async function llamarIA(p, attempt = 1) {
+            const MAX_RETRIES = 5;
+            const sb = document.getElementById('status-bar');
+            
             try {
-                if (WORKING_MODEL) return await fetchGemini(p, WORKING_MODEL);
-                for (let m of MODEL_CANDIDATES) {
-                    const r = await fetchGemini(p, m);
-                    if (r && !r.startsWith("Error")) { WORKING_MODEL = m; return r; }
-                }
-                throw new Error("Modelos fallaron");
+                // Seleccionar modelo (Flash primero)
+                let model = MODEL_CANDIDATES[0]; 
+                if(attempt > 2) model = MODEL_CANDIDATES[1]; // Cambiar a experimental si falla mucho
+                
+                // Llamada
+                const res = await fetchGemini(p, model);
+                return res;
+
             } catch (e) {
-                // Si falla (Rate Limit), esperamos 10 segundos y reintentamos SIEMPRE
-                const waitTime = 10000; 
-                console.warn(`Intento ${attempt} fallido. Reintentando en ${waitTime/1000}s...`);
-                await new Promise(r => setTimeout(r, waitTime));
-                return llamarIA(p, attempt + 1);
+                if (attempt <= MAX_RETRIES) {
+                    const waitTime = 3000 * attempt; // 3s, 6s, 9s...
+                    sb.innerText = `⚠️ Saturación detectada. Reintentando (${attempt}/${MAX_RETRIES}) en ${waitTime/1000}s...`;
+                    console.warn(`Retry ${attempt} in ${waitTime}ms`);
+                    await new Promise(r => setTimeout(r, waitTime));
+                    return llamarIA(p, attempt + 1);
+                }
+                return "Error: Servicio saturado. Intente más tarde.";
             }
         }
 
@@ -333,18 +347,29 @@ html_template = """
                 const d = await r.json();
                 if(d.error) throw new Error(d.error.message);
                 return d.candidates[0].content.parts[0].text;
-            } catch(e) { return "Error"; }
+            } catch(e) { throw e; } // Propagar error para que el retry lo pille
+        }
+
+        function mostrarError(msg) {
+            const sb = document.getElementById('status-bar');
+            sb.innerText = "❌ " + msg;
+            sb.className = "status-error";
+            sb.style.display = "block";
         }
 
         function limpiarTexto(t) { return t.replace(/```html|```/gi, "").trim(); }
         function limpiarMermaid(t) { let l = t.replace(/```mermaid|```/gi, ""); const i = l.indexOf("graph TD"); if(i !== -1) l = l.substring(i); return l.trim(); }
 
+        // --- CHAT ---
         async function enviarMensaje() {
             const i = document.getElementById('user-input'), h = document.getElementById('chat-history');
             const t = i.value; if(!t) return;
             h.innerHTML += `<div class="msg user">${t}</div>`; i.value=""; h.scrollTop = h.scrollHeight;
+            
+            // Usamos llamarIA para que tenga retries también
             const r = await llamarIA(`Respuesta técnica breve: ${t}`);
-            h.innerHTML += `<div class="msg ai">${r ? marked.parse(limpiarTexto(r)) : "Error"}</div>`;
+            const content = (!r.startsWith("Error")) ? marked.parse(limpiarTexto(r)) : `<span style="color:red">${r}</span>`;
+            h.innerHTML += `<div class="msg ai">${content}</div>`;
             h.scrollTop = h.scrollHeight;
         }
 
