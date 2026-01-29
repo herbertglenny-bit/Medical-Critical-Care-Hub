@@ -6,7 +6,7 @@ from datetime import datetime
 import google.generativeai as genai
 import time
 
-# Configuración: Layout Wide
+# Configuración
 st.set_page_config(page_title="Biblioteca Médica IA", layout="wide", initial_sidebar_state="expanded")
 
 # --- SEGURIDAD ---
@@ -16,21 +16,18 @@ except (FileNotFoundError, KeyError):
     st.error("⚠️ Error: Falta 'GEMINI_API_KEY' en Secrets.")
     st.stop()
 
-# --- GESTIÓN DE BASE DE DATOS ---
+# --- DIAGNÓSTICO DE VERSIÓN (NUEVO) ---
+version_lib = genai.__version__
+st.sidebar.info(f"📚 Librería IA Versión: {version_lib}")
+# Si la versión es vieja, avisamos
+if version_lib < "0.7.0":
+    st.sidebar.error("⚠️ VERSIÓN OBSOLETA. El archivo requirements.txt no se ha leído bien.")
+
+# --- BASE DE DATOS ---
 def init_db():
     conn = sqlite3.connect('guias_medicas.db')
     c = conn.cursor()
-    c.execute('''
-        CREATE TABLE IF NOT EXISTS guias (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            titulo TEXT,
-            fecha TEXT,
-            pdf_blob BLOB,
-            analisis_md TEXT,
-            infografia_html TEXT,
-            mermaid_code TEXT
-        )
-    ''')
+    c.execute('''CREATE TABLE IF NOT EXISTS guias (id INTEGER PRIMARY KEY AUTOINCREMENT, titulo TEXT, fecha TEXT, pdf_blob BLOB, analisis_md TEXT, infografia_html TEXT, mermaid_code TEXT)''')
     conn.commit()
     conn.close()
 
@@ -38,8 +35,7 @@ def guardar_guia(titulo, pdf_bytes, analisis, info_html, mermaid):
     conn = sqlite3.connect('guias_medicas.db')
     c = conn.cursor()
     fecha = datetime.now().strftime("%Y-%m-%d %H:%M")
-    c.execute('INSERT INTO guias (titulo, fecha, pdf_blob, analisis_md, infografia_html, mermaid_code) VALUES (?, ?, ?, ?, ?, ?)',
-              (titulo, fecha, pdf_bytes, analisis, info_html, mermaid))
+    c.execute('INSERT INTO guias (titulo, fecha, pdf_blob, analisis_md, infografia_html, mermaid_code) VALUES (?, ?, ?, ?, ?, ?)', (titulo, fecha, pdf_bytes, analisis, info_html, mermaid))
     conn.commit()
     conn.close()
 
@@ -66,52 +62,41 @@ def borrar_guia(id_guia):
     conn.commit()
     conn.close()
 
-# Inicializar DB
 init_db()
 
-# --- INTERFAZ HTML/JS (Motor Visual V43) ---
+# --- HTML TEMPLATE ---
 html_template = """
 <!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Estación Médica V43</title>
+    <title>Estación Médica V44</title>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
-    <script>
-        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-    </script>
+    <script>pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';</script>
     <style>
         * { box-sizing: border-box; }
         body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; font-family: 'Segoe UI', Roboto, sans-serif; background: #202124; }
         .main-container { display: flex; width: 100vw; height: 100vh; }
-        
         .pdf-section { width: 50%; min-width: 50%; height: 100%; display: flex; flex-direction: column; border-right: 1px solid #444; background: #525659; }
         .pdf-toolbar { height: 50px; background: #323639; display: flex; align-items: center; justify-content: center; gap: 15px; box-shadow: 0 2px 5px rgba(0,0,0,0.2); z-index: 10; flex-shrink: 0; }
         .pdf-scroll-container { flex: 1; overflow: auto; padding: 40px; background: #525659; text-align: center; display: block; }
         .pdf-page-canvas { display: inline-block; box-shadow: 0 4px 15px rgba(0,0,0,0.6); margin-bottom: 20px; vertical-align: top; background: white; }
-
         .right-panel { width: 50%; min-width: 50%; height: 100%; display: flex; flex-direction: column; background: #f0f2f5; }
         .tabs-header { height: 50px; background: #fff; border-bottom: 1px solid #ddd; display: flex; flex-shrink: 0; z-index: 5; }
         .tab-btn { flex: 1; border: none; background: transparent; cursor: pointer; font-weight: 600; color: #5f6368; font-size: 14px; border-bottom: 3px solid transparent; }
         .tab-btn.active { color: #1a73e8; border-bottom: 3px solid #1a73e8; background: #e8f0fe; }
-        
         .content-area { flex: 1; overflow: hidden; position: relative; display: flex; flex-direction: column; }
         .tab-content { display: none; width: 100%; height: 100%; overflow-y: auto; }
         .tab-content.active { display: block; }
-
-        /* MARKDOWN & INFOGRAFÍA ESTILOS */
         .markdown-wrapper { padding: 40px; max-width: 900px; margin: auto; background: white; min-height: 100%; }
         .markdown-body { font-size: 16px; line-height: 1.7; color: #2c3e50; padding-bottom: 50px; }
         .markdown-body h1 { color: #1565c0; border-bottom: 2px solid #eee; margin-top: 0; }
         .markdown-body h2 { color: #2c3e50; margin-top: 30px; border-left: 4px solid #1565c0; padding-left: 10px; }
-
         #infografia-wrapper { padding: 50px; text-align: center; min-height: 100%; background: #dce1e6; }
         #infografia-visual-container { width: 900px; margin: 0 auto; background: white; box-shadow: 0 15px 50px rgba(0,0,0,0.2); font-family: 'Roboto', sans-serif; color: #333; text-align: left; overflow: visible; display: inline-block; }
-        
-        /* ESTILOS PÓSTER */
         .poster-header { background: #003c8f; color: white; padding: 50px; position: relative; }
         .poster-header:after { content: ""; display: block; width: 100%; height: 10px; background: #ffca28; position: absolute; bottom: 0; left: 0; }
         .poster-title { font-size: 38px; font-weight: 900; margin: 0; line-height: 1.1; text-transform: uppercase; letter-spacing: -0.5px; }
@@ -135,14 +120,10 @@ html_template = """
         .poster-footer { background: #202124; color: white; padding: 40px 50px; text-align: center; }
         .footer-list { display: flex; flex-wrap: wrap; justify-content: center; gap: 15px; }
         .footer-item { background: rgba(255,255,255,0.15); padding: 10px 20px; border-radius: 30px; font-size: 14px; font-weight: 500; }
-
-        /* UI ELEMENTS */
         button { cursor: pointer; padding: 8px 16px; border-radius: 4px; border: none; font-weight: 600; font-size: 13px; box-shadow: 0 1px 3px rgba(0,0,0,0.2); }
         .btn-control { background: #fff; color: #333; }
         .btn-primary { background: #0d47a1; color: white; margin-left: auto; display: none; }
         .btn-pdf { background: #c5221f; color: white; text-decoration: none; padding: 8px 16px; border-radius: 4px; font-size: 13px; display: none; }
-
-        /* CHAT */
         #tab-chat { display: none; width: 100%; height: 100%; flex-direction: column; }
         .chat-layout { display: flex; flex-direction: column; height: 100%; }
         .chat-input-box { height: 80px; padding: 20px; background: #fff; border-bottom: 1px solid #eee; display: flex; gap: 15px; flex-shrink: 0; box-shadow: 0 4px 6px rgba(0,0,0,0.05); z-index: 10; }
@@ -162,7 +143,6 @@ html_template = """
             </div>
             <div id="pdf-container" class="pdf-scroll-container"></div>
         </div>
-
         <div class="right-panel">
             <div class="tabs-header">
                 <button class="tab-btn active" onclick="abrirPestana('tab-analisis')">📝 Análisis</button>
@@ -170,21 +150,12 @@ html_template = """
                 <button class="tab-btn" onclick="abrirPestana('tab-chat')">💬 Chat</button>
                 <button id="btn-save-img" class="btn-primary" onclick="descargarPoster()">📸 Descargar Imagen</button>
             </div>
-            
             <div class="content-area">
-                <div id="tab-analisis" class="tab-content active">
-                    <div class="markdown-wrapper">
-                        <div id="analisis-content" class="markdown-body"></div>
-                    </div>
-                </div>
-                <div id="tab-infografia" class="tab-content">
-                    <div id="infografia-wrapper">
-                        <div id="infografia-visual-container"></div>
-                    </div>
-                </div>
+                <div id="tab-analisis" class="tab-content active"><div class="markdown-wrapper"><div id="analisis-content" class="markdown-body"></div></div></div>
+                <div id="tab-infografia" class="tab-content"><div id="infografia-wrapper"><div id="infografia-visual-container"></div></div></div>
                 <div id="tab-chat" class="tab-content">
                     <div class="chat-input-box">
-                        <input type="text" id="user-input" placeholder="Escribe tu pregunta sobre la guía..." style="flex:1; padding:12px 20px; border:1px solid #ddd; border-radius:30px; outline:none; font-size:15px; background:#f9f9f9;" onkeypress="if(event.key==='Enter') enviarMensaje()">
+                        <input type="text" id="user-input" placeholder="Escribe tu pregunta..." style="flex:1; padding:12px 20px; border:1px solid #ddd; border-radius:30px; outline:none; font-size:15px; background:#f9f9f9;" onkeypress="if(event.key==='Enter') enviarMensaje()">
                         <button onclick="enviarMensaje()" style="background:#1565c0; color:white; padding:0 25px; border-radius:30px; border:none; font-weight:bold; cursor:pointer;">ENVIAR</button>
                     </div>
                     <div id="chat-history"></div>
@@ -192,21 +163,11 @@ html_template = """
             </div>
         </div>
     </div>
-
     <script>
         const API_KEY = "__API_KEY__"; 
-        
-        // --- V43: LISTA DE MODELOS ROBUSTA PARA JS ---
-        // Intentaremos estos modelos en orden si uno falla
-        const MODEL_CANDIDATES = [
-            "gemini-1.5-flash", 
-            "gemini-1.5-pro", 
-            "gemini-pro"
-        ];
-        
+        const MODELS = ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-pro"];
         let pdfDoc = null, scale = 1.0, rotation = 0, globalPdfBase64 = null;
         mermaid.initialize({ startOnLoad: false, theme: 'neutral', securityLevel: 'loose' });
-
         const DATA_PDF = "__PDF_DATA__"; 
         const DATA_ANALISIS = `__ANALISIS_DATA__`;
         const DATA_INFO = `__INFO_DATA__`;
@@ -220,16 +181,11 @@ html_template = """
                 if(DATA_INFO && DATA_INFO !== "null") {
                     document.getElementById('infografia-visual-container').innerHTML = DATA_INFO;
                     if(DATA_MERMAID && DATA_MERMAID !== "null") {
-                        setTimeout(() => {
-                            const target = document.getElementById('mermaid-placeholder');
-                            if(target) { target.innerHTML = `<div class="mermaid">${DATA_MERMAID}</div>`; mermaid.run(); }
-                        }, 500);
+                        setTimeout(() => { const target = document.getElementById('mermaid-placeholder'); if(target) { target.innerHTML = `<div class="mermaid">${DATA_MERMAID}</div>`; mermaid.run(); } }, 500);
                         document.getElementById('btn-save-img').style.display = 'block';
                     }
                 }
-            } else {
-                document.getElementById('analisis-content').innerHTML = "<div style='text-align:center;margin-top:100px;color:#aaa;'>Selecciona una guía de la biblioteca.</div>";
-            }
+            } else { document.getElementById('analisis-content').innerHTML = "<div style='text-align:center;margin-top:100px;color:#aaa;'>Selecciona una guía.</div>"; }
         };
 
         function abrirPestana(id) {
@@ -267,7 +223,6 @@ html_template = """
         }
         function ajustarZoom(d) { if(pdfDoc) { scale = Math.max(0.2, scale + d); renderizarTodo(); } }
 
-        // --- CHATBOT CON REINTENTO AUTOMÁTICO (JS) ---
         async function enviarMensaje() {
             const i = document.getElementById('user-input'), h = document.getElementById('chat-history');
             const t = i.value; if(!t) return;
@@ -275,11 +230,10 @@ html_template = """
             const loadingId = "load"+Date.now();
             h.innerHTML += `<div id="${loadingId}" class="msg ai" style="color:#888">...</div>`;
             
-            // Función interna para reintentar modelos
+            // INTENTO ROBUSTO DESDE JS
             async function tryFetch(prompt, attempts = 0) {
-                if (attempts >= MODEL_CANDIDATES.length) throw new Error("Todos los modelos fallaron.");
-                const currentModel = MODEL_CANDIDATES[attempts];
-                
+                if (attempts >= MODELS.length) throw new Error("Todos los modelos fallaron.");
+                const currentModel = MODELS[attempts];
                 try {
                     const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${currentModel}:generateContent?key=${API_KEY}`, {
                         method: 'POST', headers: {'Content-Type': 'application/json'},
@@ -290,7 +244,6 @@ html_template = """
                     if(d.error) throw new Error(d.error.message);
                     return d.candidates[0].content.parts[0].text;
                 } catch(e) {
-                    console.warn(`Modelo ${currentModel} falló, probando siguiente...`);
                     return await tryFetch(prompt, attempts + 1);
                 }
             }
@@ -299,9 +252,7 @@ html_template = """
                 const text = await tryFetch(t);
                 document.getElementById(loadingId).remove();
                 h.innerHTML += `<div class="msg ai">${marked.parse(text)}</div>`;
-            } catch(e) {
-                document.getElementById(loadingId).innerHTML = "Error: Sistema saturado o modelo no disponible.";
-            }
+            } catch(e) { document.getElementById(loadingId).innerHTML = "Error de red/IA."; }
             h.scrollTop = h.scrollHeight;
         }
 
@@ -316,7 +267,7 @@ html_template = """
 </html>
 """
 
-# --- LOGIC ---
+# --- SIDEBAR ---
 with st.sidebar:
     st.header("🏥 Biblioteca")
     modo_admin = st.checkbox("Modo Administrador")
@@ -343,35 +294,34 @@ if modo_admin:
             genai.configure(api_key=API_KEY)
             pdf_bytes = uploaded_file.read()
             
-            # --- FUNCIÓN DE SEGURIDAD V43 ---
-            # Intenta Flash -> 1.5 Pro -> 1.0 Pro hasta que uno funcione
+            # --- FUNCIÓN DE SEGURIDAD V44 ---
             def try_generate(prompt_text, file_bytes):
-                models_to_try = ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-pro"]
+                # INTENTAMOS TODOS LOS MODELOS POSIBLES
+                models_to_try = ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-pro", "models/gemini-1.5-flash", "models/gemini-pro"]
                 last_error = ""
                 for m_name in models_to_try:
                     try:
                         model = genai.GenerativeModel(m_name)
                         response = model.generate_content([{'mime_type': 'application/pdf', 'data': file_bytes}, prompt_text])
-                        return response.text
+                        return response.text, m_name
                     except Exception as e:
                         last_error = str(e)
-                        time.sleep(1) # Pausa breve antes de cambiar de modelo
+                        time.sleep(1)
                         continue
                 raise Exception(f"Fallo total en IA: {last_error}")
             
             try:
-                # 1. Análisis
-                analisis_txt = try_generate("ERES UN MOTOR DE DATOS. EMPIEZA DIRECTO CON EL TÍTULO (#). Analiza: 1.Definiciones 2.Algoritmo 3.Soporte 4.Semáforo 5.Poblaciones.", pdf_bytes)
+                analisis_txt, used_model = try_generate("ERES UN MOTOR DE DATOS. EMPIEZA DIRECTO CON EL TÍTULO (#). Analiza: 1.Definiciones 2.Algoritmo 3.Soporte 4.Semáforo 5.Poblaciones.", pdf_bytes)
+                st.info(f"Análisis completado con: {used_model}") # Feedback visual
                 
-                # 2. HTML
-                prompt_html = """Genera SOLO HTML para PÓSTER MÉDICO (Diseño V31). 
+                info_html, _ = try_generate("""Genera SOLO HTML para PÓSTER MÉDICO (Diseño V31). 
                 <div class="poster-header"><h1 class="poster-title">TITULO</h1><div class="poster-meta">META</div></div>
                 <div class="poster-body">...contenido estructurado...<div id="mermaid-placeholder" class="poster-mermaid"></div></div>
-                <div class="poster-footer">...</div>"""
-                info_html = try_generate(prompt_html, pdf_bytes).replace("```html", "").replace("```", "")
+                <div class="poster-footer">...</div>""", pdf_bytes)
+                info_html = info_html.replace("```html", "").replace("```", "")
                 
-                # 3. Mermaid
-                mermaid_code = try_generate("Crea 'mermaid graph TD' SIMPLE. Solo código.", pdf_bytes).replace("```mermaid", "").replace("```", "")
+                mermaid_code, _ = try_generate("Crea 'mermaid graph TD' SIMPLE. Solo código.", pdf_bytes)
+                mermaid_code = mermaid_code.replace("```mermaid", "").replace("```", "")
                 
                 st.session_state['temp_upload'] = {
                     'titulo': uploaded_file.name,
@@ -380,7 +330,7 @@ if modo_admin:
                     'html': info_html,
                     'mermaid': mermaid_code
                 }
-                st.success(f"Procesado con éxito.")
+                st.success("Procesado con éxito.")
                 
             except Exception as e:
                 st.error(f"Error IA: {str(e)}")
