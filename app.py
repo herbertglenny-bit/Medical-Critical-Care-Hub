@@ -69,13 +69,13 @@ def borrar_guia(id_guia):
 # Inicializar DB
 init_db()
 
-# --- INTERFAZ HTML/JS (Motor Visual) ---
+# --- INTERFAZ HTML/JS (Motor Visual V43) ---
 html_template = """
 <!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Estación Médica V42</title>
+    <title>Estación Médica V43</title>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -84,7 +84,6 @@ html_template = """
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
     </script>
     <style>
-        /* CSS Integrado V40 */
         * { box-sizing: border-box; }
         body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; font-family: 'Segoe UI', Roboto, sans-serif; background: #202124; }
         .main-container { display: flex; width: 100vw; height: 100vh; }
@@ -196,7 +195,15 @@ html_template = """
 
     <script>
         const API_KEY = "__API_KEY__"; 
-        const MODEL = "gemini-1.5-flash";
+        
+        // --- V43: LISTA DE MODELOS ROBUSTA PARA JS ---
+        // Intentaremos estos modelos en orden si uno falla
+        const MODEL_CANDIDATES = [
+            "gemini-1.5-flash", 
+            "gemini-1.5-pro", 
+            "gemini-pro"
+        ];
+        
         let pdfDoc = null, scale = 1.0, rotation = 0, globalPdfBase64 = null;
         mermaid.initialize({ startOnLoad: false, theme: 'neutral', securityLevel: 'loose' });
 
@@ -260,23 +267,41 @@ html_template = """
         }
         function ajustarZoom(d) { if(pdfDoc) { scale = Math.max(0.2, scale + d); renderizarTodo(); } }
 
+        // --- CHATBOT CON REINTENTO AUTOMÁTICO (JS) ---
         async function enviarMensaje() {
             const i = document.getElementById('user-input'), h = document.getElementById('chat-history');
             const t = i.value; if(!t) return;
             h.innerHTML += `<div class="msg user">${t}</div>`; i.value=""; h.scrollTop = h.scrollHeight;
             const loadingId = "load"+Date.now();
             h.innerHTML += `<div id="${loadingId}" class="msg ai" style="color:#888">...</div>`;
+            
+            // Función interna para reintentar modelos
+            async function tryFetch(prompt, attempts = 0) {
+                if (attempts >= MODEL_CANDIDATES.length) throw new Error("Todos los modelos fallaron.");
+                const currentModel = MODEL_CANDIDATES[attempts];
+                
+                try {
+                    const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${currentModel}:generateContent?key=${API_KEY}`, {
+                        method: 'POST', headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({ contents: [{ parts: [{ text: "Responde como médico experto. Breve: " + prompt }, { inline_data: { mime_type: "application/pdf", data: globalPdfBase64 } }] }] })
+                    });
+                    if (!r.ok) throw new Error(r.statusText);
+                    const d = await r.json();
+                    if(d.error) throw new Error(d.error.message);
+                    return d.candidates[0].content.parts[0].text;
+                } catch(e) {
+                    console.warn(`Modelo ${currentModel} falló, probando siguiente...`);
+                    return await tryFetch(prompt, attempts + 1);
+                }
+            }
+
             try {
-                const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${API_KEY}`, {
-                    method: 'POST', headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ contents: [{ parts: [{ text: "Responde como médico experto. Breve y técnico: " + t }, { inline_data: { mime_type: "application/pdf", data: globalPdfBase64 } }] }] })
-                });
-                const d = await r.json();
+                const text = await tryFetch(t);
                 document.getElementById(loadingId).remove();
-                if(d.error) throw new Error(d.error.message);
-                const text = d.candidates[0].content.parts[0].text;
                 h.innerHTML += `<div class="msg ai">${marked.parse(text)}</div>`;
-            } catch(e) { document.getElementById(loadingId).innerHTML = "Error de red."; }
+            } catch(e) {
+                document.getElementById(loadingId).innerHTML = "Error: Sistema saturado o modelo no disponible.";
+            }
             h.scrollTop = h.scrollHeight;
         }
 
@@ -291,7 +316,7 @@ html_template = """
 </html>
 """
 
-# --- SIDEBAR & LOGIC ---
+# --- LOGIC ---
 with st.sidebar:
     st.header("🏥 Biblioteca")
     modo_admin = st.checkbox("Modo Administrador")
@@ -309,7 +334,6 @@ with st.sidebar:
                 borrar_guia(g_id)
                 st.rerun()
 
-# PROCESAMIENTO PYTHON
 if modo_admin:
     st.title("⚙️ Administrador: Cargar Nueva Guía")
     uploaded_file = st.file_uploader("Subir PDF", type="pdf")
@@ -317,43 +341,37 @@ if modo_admin:
     if uploaded_file and st.button("🚀 Procesar con IA"):
         with st.spinner("Procesando... esto puede tardar unos segundos..."):
             genai.configure(api_key=API_KEY)
-            
-            # --- FUNCIÓN DE SELECCIÓN DE MODELO ROBUSTA ---
-            def get_generative_model():
-                # Lista de candidatos en orden de preferencia
-                candidates = ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-pro"]
-                for model_name in candidates:
-                    try:
-                        # Probamos instanciar el modelo
-                        m = genai.GenerativeModel(model_name)
-                        return m, model_name
-                    except:
-                        continue
-                st.error("No se encontró ningún modelo compatible. Actualiza google-generativeai.")
-                st.stop()
-            
-            model, model_name = get_generative_model()
-            # -----------------------------------------------
-
             pdf_bytes = uploaded_file.read()
+            
+            # --- FUNCIÓN DE SEGURIDAD V43 ---
+            # Intenta Flash -> 1.5 Pro -> 1.0 Pro hasta que uno funcione
+            def try_generate(prompt_text, file_bytes):
+                models_to_try = ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-pro"]
+                last_error = ""
+                for m_name in models_to_try:
+                    try:
+                        model = genai.GenerativeModel(m_name)
+                        response = model.generate_content([{'mime_type': 'application/pdf', 'data': file_bytes}, prompt_text])
+                        return response.text
+                    except Exception as e:
+                        last_error = str(e)
+                        time.sleep(1) # Pausa breve antes de cambiar de modelo
+                        continue
+                raise Exception(f"Fallo total en IA: {last_error}")
             
             try:
                 # 1. Análisis
-                prompt1 = "ERES UN MOTOR DE DATOS. EMPIEZA DIRECTO CON EL TÍTULO (#). Analiza: 1.Definiciones 2.Algoritmo 3.Soporte 4.Semáforo 5.Poblaciones."
-                res1 = model.generate_content([{'mime_type': 'application/pdf', 'data': pdf_bytes}, prompt1])
-                analisis_txt = res1.text
+                analisis_txt = try_generate("ERES UN MOTOR DE DATOS. EMPIEZA DIRECTO CON EL TÍTULO (#). Analiza: 1.Definiciones 2.Algoritmo 3.Soporte 4.Semáforo 5.Poblaciones.", pdf_bytes)
                 
                 # 2. HTML
-                prompt2 = """Genera SOLO HTML para PÓSTER MÉDICO (Diseño V31). 
+                prompt_html = """Genera SOLO HTML para PÓSTER MÉDICO (Diseño V31). 
                 <div class="poster-header"><h1 class="poster-title">TITULO</h1><div class="poster-meta">META</div></div>
                 <div class="poster-body">...contenido estructurado...<div id="mermaid-placeholder" class="poster-mermaid"></div></div>
                 <div class="poster-footer">...</div>"""
-                res2 = model.generate_content([{'mime_type': 'application/pdf', 'data': pdf_bytes}, prompt2])
-                info_html = res2.text.replace("```html", "").replace("```", "")
+                info_html = try_generate(prompt_html, pdf_bytes).replace("```html", "").replace("```", "")
                 
                 # 3. Mermaid
-                res3 = model.generate_content([{'mime_type': 'application/pdf', 'data': pdf_bytes}, "Crea 'mermaid graph TD' SIMPLE. Solo código."])
-                mermaid_code = res3.text.replace("```mermaid", "").replace("```", "")
+                mermaid_code = try_generate("Crea 'mermaid graph TD' SIMPLE. Solo código.", pdf_bytes).replace("```mermaid", "").replace("```", "")
                 
                 st.session_state['temp_upload'] = {
                     'titulo': uploaded_file.name,
@@ -362,7 +380,7 @@ if modo_admin:
                     'html': info_html,
                     'mermaid': mermaid_code
                 }
-                st.success(f"Procesado con éxito usando {model_name}")
+                st.success(f"Procesado con éxito.")
                 
             except Exception as e:
                 st.error(f"Error IA: {str(e)}")
