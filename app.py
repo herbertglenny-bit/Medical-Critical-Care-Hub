@@ -17,7 +17,7 @@ html_template = """
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Estación Médica V35 (Smart Queue)</title>
+    <title>Estación Médica V36 (Safe Queue)</title>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -82,6 +82,9 @@ html_template = """
         .footer-list { display: flex; flex-wrap: wrap; justify-content: center; gap: 15px; }
         .footer-item { background: rgba(255,255,255,0.15); padding: 10px 20px; border-radius: 30px; font-size: 14px; font-weight: 500; }
 
+        /* STATUS BAR */
+        #status-bar { padding: 15px; background: #e3f2fd; color: #0d47a1; text-align: center; font-weight: bold; border-bottom: 1px solid #bbdefb; display: none; }
+
         /* UI ELEMENTS */
         button { cursor: pointer; padding: 8px 16px; border-radius: 4px; border: none; font-weight: 600; font-size: 13px; box-shadow: 0 1px 3px rgba(0,0,0,0.2); }
         .btn-control { background: #fff; color: #333; }
@@ -94,7 +97,6 @@ html_template = """
         .msg { padding: 12px 16px; border-radius: 12px; margin-bottom: 12px; font-size: 14px; max-width: 85%; }
         .msg.user { background: #e3f2fd; color: #1565c0; align-self: flex-end; }
         .msg.ai { background: #fff; border: 1px solid #eee; align-self: flex-start; }
-        .msg.loading { color: #888; font-style: italic; }
     </style>
 </head>
 <body>
@@ -111,7 +113,7 @@ html_template = """
             <div id="drop-zone" style="flex:1; display:flex; flex-direction:column; justify-content:center; align-items:center; color:#ccc; cursor:pointer;">
                 <div style="font-size:50px; margin-bottom:15px;">📁</div>
                 <div style="font-weight:bold; font-size:18px;">ARRASTRA TU GUÍA CLÍNICA AQUÍ</div>
-                <div style="font-size:13px; margin-top:5px; opacity:0.7;">Análisis Técnico + Infografía PRO</div>
+                <div style="font-size:13px; margin-top:5px; opacity:0.7;">Análisis + Infografía PRO</div>
             </div>
             <div id="pdf-container" class="pdf-scroll-container" style="display:none;"></div>
         </div>
@@ -123,6 +125,8 @@ html_template = """
                 <button class="tab-btn" onclick="abrirPestana('tab-chat')">💬 Chat</button>
                 <button id="btn-save-img" class="btn-primary" onclick="descargarPoster()">📸 Descargar Imagen</button>
             </div>
+            
+            <div id="status-bar">🚀 Iniciando procesos...</div>
             
             <div class="content-area">
                 <div id="tab-analisis" class="tab-content active">
@@ -188,14 +192,15 @@ html_template = """
             if(file && file.type === "application/pdf") {
                 dropZone.style.display = "none";
                 document.getElementById('pdf-container').style.display = "block"; 
-                document.getElementById('analisis-content').innerHTML = "<div style='text-align:center; margin-top:50px;'>🧠 <b>Diseccionando Guía...</b></div>";
-                document.getElementById('infografia-visual-container').innerHTML = "<div style='padding:80px; text-align:center; color:#999;'>🎨 <b>Diseñando Infografía...</b></div>";
+                document.getElementById('analisis-content').innerHTML = "<div style='text-align:center; margin-top:50px;'>🧠 <b>Esperando turno de análisis...</b></div>";
+                document.getElementById('infografia-visual-container').innerHTML = "<div style='padding:80px; text-align:center; color:#999;'>🎨 <b>En cola de diseño...</b></div>";
+                
                 const fileURL = URL.createObjectURL(file);
                 document.getElementById('btn-download').href = fileURL;
                 document.getElementById('btn-download').style.display = 'inline-block';
                 cargarPDF(fileURL);
                 const reader = new FileReader();
-                reader.onload = async () => { globalPdfBase64 = reader.result.split(',')[1]; iniciarProcesamientoParalelo(); };
+                reader.onload = async () => { globalPdfBase64 = reader.result.split(',')[1]; iniciarSecuenciaSegura(); };
                 reader.readAsDataURL(file);
             }
         });
@@ -216,27 +221,34 @@ html_template = """
         }
         function ajustarZoom(d) { if(pdfDoc) { scale = Math.max(0.2, scale + d); renderizarTodo(); } }
 
-        function iniciarProcesamientoParalelo() { 
-            // 1. Iniciar Análisis Inmediatamente
-            procesarAnalisisTexto();
+        // --- MODO COLA DE SEGURIDAD (V36) ---
+        // Ejecuta paso a paso para evitar el error 429 "Saturado"
+        async function iniciarSecuenciaSegura() {
+            const sb = document.getElementById('status-bar');
+            sb.style.display = 'block';
             
-            // 2. Iniciar Infografía con RETRASO para evitar saturación (Staggering)
-            setTimeout(() => {
-                procesarInfografiaVisual();
-            }, 3500); // Espera 3.5 segundos antes de lanzar la segunda petición pesada
+            // PASO 1: ANÁLISIS DE TEXTO
+            sb.innerText = "⏳ Paso 1/3: Analizando Texto Clínico...";
+            await procesarAnalisisTexto();
+            
+            // PASO 2: DISEÑO INFOGRAFÍA
+            sb.innerText = "⏳ Paso 2/3: Diseñando Póster Visual...";
+            await procesarInfografiaVisual();
+            
+            // PASO 3: GRÁFICO (Se llama dentro de infografía, pero actualizamos estado)
+            sb.innerText = "✅ Proceso completado con éxito";
+            setTimeout(() => { sb.style.display = 'none'; }, 3000);
         }
 
-        // --- HILO 1: ANÁLISIS ---
         async function procesarAnalisisTexto() {
             const prompt = `
             ERES UN MOTOR DE DATOS. PROHIBIDO SALUDAR. EMPIEZA DIRECTO CON EL TÍTULO (# Título).
             Analiza la Guía: 1. Definiciones 2. Algoritmo Agudo 3. Soporte Vital 4. Semáforo Evidencia 5. Poblaciones.
             `;
-            const res = await llamarIA(prompt);
+            const res = await llamarIA(prompt); // Espera a que termine
             if(res) document.getElementById('analisis-content').innerHTML = marked.parse(limpiarTexto(res));
         }
 
-        // --- HILO 2: INFOGRAFÍA ---
         async function procesarInfografiaVisual() {
             const promptPoster = `
             Genera HTML para PÓSTER MÉDICO (Diseño V31). SOLO HTML.
@@ -259,20 +271,18 @@ html_template = """
             <div class="poster-footer"><h3>TAKE HOME</h3><div class="footer-list"><div class="footer-item">M1</div></div></div>
             `;
             
-            const html = await llamarIA(promptPoster);
+            const html = await llamarIA(promptPoster); // Espera a que termine
             if(html) {
                 document.getElementById('infografia-visual-container').innerHTML = limpiarTexto(html);
                 const target = document.getElementById('mermaid-placeholder');
                 if(target) {
                     target.innerHTML = "Generando gráfico...";
-                    // Pequeña pausa extra para el gráfico
-                    setTimeout(async () => {
-                         const mer = await llamarIA(`Crea 'mermaid graph TD' SIMPLE (max 8 nodos). TEXTOS ENTRE COMILLAS DOBLES. Solo código.`);
-                        if(mer) {
-                            target.innerHTML = `<div class="mermaid">${limpiarMermaid(mer)}</div>`;
-                            try { mermaid.run(); } catch(e){}
-                        }
-                    }, 1000);
+                    // Llamada al gráfico (Paso 3 implícito)
+                    const mer = await llamarIA(`Crea 'mermaid graph TD' SIMPLE (max 8 nodos). TEXTOS ENTRE COMILLAS DOBLES. Solo código.`);
+                    if(mer) {
+                        target.innerHTML = `<div class="mermaid">${limpiarMermaid(mer)}</div>`;
+                        try { mermaid.run(); } catch(e){}
+                    }
                 }
                 if(document.getElementById('tab-infografia').classList.contains('active')) {
                     document.getElementById('btn-save-img').style.display = 'block';
@@ -280,23 +290,13 @@ html_template = """
             }
         }
 
-        // --- MOTOR IA CON BACKOFF EXPONENCIAL ---
-        async function llamarIA(p, retries = 3, delay = 5000) {
-            try {
-                if (WORKING_MODEL) return await fetchGemini(p, WORKING_MODEL);
-                for (let m of MODEL_CANDIDATES) {
-                    const r = await fetchGemini(p, m);
-                    if (r && !r.startsWith("Error")) { WORKING_MODEL = m; return r; }
-                }
-                throw new Error("Fallaron todos los modelos");
-            } catch (e) {
-                if(retries > 0) {
-                    console.log(`Reintentando en ${delay/1000}s...`);
-                    await new Promise(r => setTimeout(r, delay));
-                    return llamarIA(p, retries - 1, delay * 1.5); // Espera más cada vez
-                }
-                return "Error: Servicio saturado. Intenta de nuevo en unos segundos.";
+        async function llamarIA(p) {
+            if (WORKING_MODEL) return await fetchGemini(p, WORKING_MODEL);
+            for (let m of MODEL_CANDIDATES) {
+                const r = await fetchGemini(p, m);
+                if (r && !r.startsWith("Error")) { WORKING_MODEL = m; return r; }
             }
+            return "Error: Servicio saturado. Intente más tarde.";
         }
 
         async function fetchGemini(prompt, modelo) {
@@ -306,33 +306,21 @@ html_template = """
                     method: 'POST', headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({ contents: [{ parts: [{ text: prompt }, { inline_data: { mime_type: "application/pdf", data: globalPdfBase64 } }] }] })
                 });
-                if (r.status === 429) throw new Error("429"); // Forzar catch para el retry
                 const d = await r.json();
-                if(d.error) throw new Error(d.error.message);
+                if(d.error) return "Error";
                 return d.candidates[0].content.parts[0].text;
-            } catch(e) { return "Error"; } // Devuelve Error string para que el loop pruebe otro modelo
+            } catch(e) { return "Error"; }
         }
 
         function limpiarTexto(t) { return t.replace(/```html|```/gi, "").trim(); }
         function limpiarMermaid(t) { let l = t.replace(/```mermaid|```/gi, ""); const i = l.indexOf("graph TD"); if(i !== -1) l = l.substring(i); return l.trim(); }
 
-        // --- CHAT ---
         async function enviarMensaje() {
             const i = document.getElementById('user-input'), h = document.getElementById('chat-history');
             const t = i.value; if(!t) return;
-            
-            h.innerHTML += `<div class="msg user">${t}</div>`; 
-            i.value=""; h.scrollTop = h.scrollHeight;
-            
-            const loadingId = "loading-" + Date.now();
-            h.innerHTML += `<div id="${loadingId}" class="msg ai loading">Escribiendo...</div>`;
-            h.scrollTop = h.scrollHeight;
-
+            h.innerHTML += `<div class="msg user">${t}</div>`; i.value=""; h.scrollTop = h.scrollHeight;
             const r = await llamarIA(`Actúa como experto médico. Responde brevemente: ${t}`);
-            document.getElementById(loadingId).remove();
-            
-            const content = r && !r.startsWith("Error") ? marked.parse(limpiarTexto(r)) : `<span style="color:red">${r}</span>`;
-            h.innerHTML += `<div class="msg ai">${content}</div>`;
+            h.innerHTML += `<div class="msg ai">${r ? marked.parse(limpiarTexto(r)) : "Error"}</div>`;
             h.scrollTop = h.scrollHeight;
         }
 
