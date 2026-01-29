@@ -17,7 +17,7 @@ html_template = """
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Estación Médica V34 (Chat Fix)</title>
+    <title>Estación Médica V35 (Smart Queue)</title>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -216,12 +216,20 @@ html_template = """
         }
         function ajustarZoom(d) { if(pdfDoc) { scale = Math.max(0.2, scale + d); renderizarTodo(); } }
 
-        function iniciarProcesamientoParalelo() { procesarAnalisisTexto(); procesarInfografiaVisual(); }
+        function iniciarProcesamientoParalelo() { 
+            // 1. Iniciar Análisis Inmediatamente
+            procesarAnalisisTexto();
+            
+            // 2. Iniciar Infografía con RETRASO para evitar saturación (Staggering)
+            setTimeout(() => {
+                procesarInfografiaVisual();
+            }, 3500); // Espera 3.5 segundos antes de lanzar la segunda petición pesada
+        }
 
         // --- HILO 1: ANÁLISIS ---
         async function procesarAnalisisTexto() {
             const prompt = `
-            ERES UN MOTOR DE DATOS MÉDICOS. PROHIBIDO SALUDAR. EMPIEZA DIRECTO CON EL TÍTULO (# Título).
+            ERES UN MOTOR DE DATOS. PROHIBIDO SALUDAR. EMPIEZA DIRECTO CON EL TÍTULO (# Título).
             Analiza la Guía: 1. Definiciones 2. Algoritmo Agudo 3. Soporte Vital 4. Semáforo Evidencia 5. Poblaciones.
             `;
             const res = await llamarIA(prompt);
@@ -234,7 +242,7 @@ html_template = """
             Genera HTML para PÓSTER MÉDICO (Diseño V31). SOLO HTML.
             <div class="poster-header"><h1 class="poster-title">TITULO</h1><div class="poster-meta">META</div></div>
             <div class="poster-body">
-                <div class="section-title">SEMÁFORO</div>
+                <div class="section-title">SEMÁFORO DE CAMBIOS</div>
                 <div class="traffic-container">
                     <div class="traffic-col tc-stop"><span class="traffic-icon">⛔</span><div class="traffic-title">STOP</div><ul><li>...</li></ul></div>
                     <div class="traffic-col tc-wait"><span class="traffic-icon">⚠️</span><div class="traffic-title">PRECAUCIÓN</div><ul><li>...</li></ul></div>
@@ -257,11 +265,14 @@ html_template = """
                 const target = document.getElementById('mermaid-placeholder');
                 if(target) {
                     target.innerHTML = "Generando gráfico...";
-                    const mer = await llamarIA(`Crea 'mermaid graph TD' SIMPLE (max 8 nodos). TEXTOS ENTRE COMILLAS DOBLES. Solo código.`);
-                    if(mer) {
-                        target.innerHTML = `<div class="mermaid">${limpiarMermaid(mer)}</div>`;
-                        try { mermaid.run(); } catch(e){}
-                    }
+                    // Pequeña pausa extra para el gráfico
+                    setTimeout(async () => {
+                         const mer = await llamarIA(`Crea 'mermaid graph TD' SIMPLE (max 8 nodos). TEXTOS ENTRE COMILLAS DOBLES. Solo código.`);
+                        if(mer) {
+                            target.innerHTML = `<div class="mermaid">${limpiarMermaid(mer)}</div>`;
+                            try { mermaid.run(); } catch(e){}
+                        }
+                    }, 1000);
                 }
                 if(document.getElementById('tab-infografia').classList.contains('active')) {
                     document.getElementById('btn-save-img').style.display = 'block';
@@ -269,22 +280,22 @@ html_template = """
             }
         }
 
-        // --- MOTOR IA ROBUSTO (REINTENTOS) ---
-        async function llamarIA(p, retries = 2) {
+        // --- MOTOR IA CON BACKOFF EXPONENCIAL ---
+        async function llamarIA(p, retries = 3, delay = 5000) {
             try {
                 if (WORKING_MODEL) return await fetchGemini(p, WORKING_MODEL);
                 for (let m of MODEL_CANDIDATES) {
                     const r = await fetchGemini(p, m);
                     if (r && !r.startsWith("Error")) { WORKING_MODEL = m; return r; }
                 }
-                throw new Error("Todos los modelos fallaron");
+                throw new Error("Fallaron todos los modelos");
             } catch (e) {
                 if(retries > 0) {
-                    console.warn("Reintentando IA...");
-                    await new Promise(r => setTimeout(r, 2000)); // Esperar 2s
-                    return llamarIA(p, retries - 1);
+                    console.log(`Reintentando en ${delay/1000}s...`);
+                    await new Promise(r => setTimeout(r, delay));
+                    return llamarIA(p, retries - 1, delay * 1.5); // Espera más cada vez
                 }
-                return "Error: Servicio saturado. Intente en unos segundos.";
+                return "Error: Servicio saturado. Intenta de nuevo en unos segundos.";
             }
         }
 
@@ -295,37 +306,31 @@ html_template = """
                     method: 'POST', headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({ contents: [{ parts: [{ text: prompt }, { inline_data: { mime_type: "application/pdf", data: globalPdfBase64 } }] }] })
                 });
-                if (r.status === 429) return "Error 429"; // Rate Limit Hit
+                if (r.status === 429) throw new Error("429"); // Forzar catch para el retry
                 const d = await r.json();
-                if(d.error) return "Error: " + d.error.message;
+                if(d.error) throw new Error(d.error.message);
                 return d.candidates[0].content.parts[0].text;
-            } catch(e) { return "Error Red"; }
+            } catch(e) { return "Error"; } // Devuelve Error string para que el loop pruebe otro modelo
         }
 
         function limpiarTexto(t) { return t.replace(/```html|```/gi, "").trim(); }
         function limpiarMermaid(t) { let l = t.replace(/```mermaid|```/gi, ""); const i = l.indexOf("graph TD"); if(i !== -1) l = l.substring(i); return l.trim(); }
 
-        // --- CHAT FIX ---
+        // --- CHAT ---
         async function enviarMensaje() {
             const i = document.getElementById('user-input'), h = document.getElementById('chat-history');
             const t = i.value; if(!t) return;
             
-            // UI Update Usuario
             h.innerHTML += `<div class="msg user">${t}</div>`; 
             i.value=""; h.scrollTop = h.scrollHeight;
             
-            // Loading Indicator
             const loadingId = "loading-" + Date.now();
             h.innerHTML += `<div id="${loadingId}" class="msg ai loading">Escribiendo...</div>`;
             h.scrollTop = h.scrollHeight;
 
-            // Llamada IA
             const r = await llamarIA(`Actúa como experto médico. Responde brevemente: ${t}`);
-            
-            // Remove Loading
             document.getElementById(loadingId).remove();
             
-            // UI Update IA
             const content = r && !r.startsWith("Error") ? marked.parse(limpiarTexto(r)) : `<span style="color:red">${r}</span>`;
             h.innerHTML += `<div class="msg ai">${content}</div>`;
             h.scrollTop = h.scrollHeight;
