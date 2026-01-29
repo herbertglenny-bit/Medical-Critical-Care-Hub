@@ -9,7 +9,7 @@ import google.generativeai as genai
 import time
 
 # Configuración
-st.set_page_config(page_title="NanoBanana Medical V53", layout="wide", initial_sidebar_state="expanded")
+st.set_page_config(page_title="NanoBanana Medical V54", layout="wide", initial_sidebar_state="expanded")
 
 # --- SEGURIDAD ---
 try:
@@ -90,6 +90,14 @@ def clean_html_output(text):
     if end_match != -1: text = text[:end_match+6]
     return text.strip()
 
+def clean_mermaid_code(text):
+    # Eliminar bloques de código markdown
+    text = text.replace("```mermaid", "").replace("```", "")
+    # Eliminar posibles etiquetas de lenguaje que la IA ponga al principio
+    text = re.sub(r'^mermaid\s+', '', text, flags=re.IGNORECASE)
+    # Limpiar espacios extra
+    return text.strip()
+
 # --- HTML TEMPLATE ---
 html_template = """
 <!DOCTYPE html>
@@ -97,38 +105,33 @@ html_template = """
 <head>
     <meta charset="UTF-8">
     <title>NanoBanana Medical Station</title>
-    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-    <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
-    <script>pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';</script>
+    <script src="[https://cdn.jsdelivr.net/npm/marked/marked.min.js](https://cdn.jsdelivr.net/npm/marked/marked.min.js)"></script>
+    <script src="[https://cdn.jsdelivr.net/npm/mermaid@10.2.4/dist/mermaid.min.js](https://cdn.jsdelivr.net/npm/mermaid@10.2.4/dist/mermaid.min.js)"></script>
+    <script src="[https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js](https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js)"></script>
+    <script src="[https://html2canvas.hertzen.com/dist/html2canvas.min.js](https://html2canvas.hertzen.com/dist/html2canvas.min.js)"></script>
+    <script>pdfjsLib.GlobalWorkerOptions.workerSrc = '[https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js](https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js)';</script>
     <style>
         * { box-sizing: border-box; }
         body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; font-family: 'Inter', -apple-system, sans-serif; background: #121212; }
         .main-container { display: flex; width: 100vw; height: 100vh; }
-        
         .pdf-section { width: 50%; height: 100%; display: flex; flex-direction: column; border-right: 1px solid #333; background: #2c2c2c; }
         .pdf-toolbar { height: 50px; background: #1a1a1a; display: flex; align-items: center; justify-content: center; gap: 20px; flex-shrink: 0; }
         .pdf-scroll-container { flex: 1; overflow: auto; padding: 30px; text-align: center; }
         .pdf-page-canvas { display: inline-block; box-shadow: 0 10px 30px rgba(0,0,0,0.5); margin-bottom: 20px; background: white; }
-
         .right-panel { width: 50%; min-width: 50%; height: 100%; display: flex; flex-direction: column; background: #fdfdfd; }
         .tabs-header { height: 55px; background: #fff; border-bottom: 3px solid #ffd600; display: flex; flex-shrink: 0; }
         .tab-btn { flex: 1; border: none; background: transparent; cursor: pointer; font-weight: 800; color: #444; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; }
         .tab-btn.active { background: #ffd600; color: #000; }
-        
         .content-area { flex: 1; overflow: hidden; display: flex; flex-direction: column; }
         .tab-content { display: none; width: 100%; height: 100%; overflow-y: auto; }
         .tab-content.active { display: block; }
-        
         .markdown-wrapper { padding: 40px; max-width: 800px; margin: auto; background: white; min-height: 100%; }
         .markdown-body { font-size: 15px; line-height: 1.6; color: #222; }
         .markdown-body h1 { color: #000; border-left: 10px solid #ffd600; padding-left: 15px; margin: 30px 0 20px 0; }
         .markdown-body h2 { color: #000; background: #fff9c4; padding: 5px 10px; margin-top: 30px; font-size: 18px; }
-        .markdown-body table { width: 100%; border-collapse: collapse; margin: 20px 0; font-size: 14px; }
+        .markdown-body table { width: 100%; border-collapse: collapse; margin: 20px 0; }
         .markdown-body th { background: #000; color: #fff; padding: 10px; border: 1px solid #333; }
         .markdown-body td { padding: 8px; border: 1px solid #ddd; }
-
         #infografia-wrapper { padding: 40px; text-align: center; background: #eee; }
         #infografia-visual-container { width: 900px; margin: 0 auto; background: white; box-shadow: 0 40px 100px rgba(0,0,0,0.2); text-align: left; display: inline-block; border-radius: 4px; overflow: hidden; }
         .poster-header { background: #000; color: #ffd600; padding: 50px; }
@@ -145,14 +148,13 @@ html_template = """
         .metric-card { background: #000; color: #ffd600; padding: 15px 5px; text-align: center; border-radius: 8px; }
         .metric-val { display: block; font-size: 28px; font-weight: 900; }
         .metric-lbl { font-size: 9px; font-weight: 700; text-transform: uppercase; color: #fff; }
-
+        .poster-mermaid { margin-top: 20px; background: #fff; padding: 20px; border: 1px solid #eee; border-radius: 10px; overflow: visible; }
         #tab-chat { display: none; width: 100%; height: 100%; flex-direction: column; background: #f5f5f5; }
         .chat-input-box { height: 80px; padding: 15px 25px; background: #fff; border-bottom: 1px solid #ddd; display: flex; gap: 10px; align-items: center; flex-shrink: 0; }
         #chat-history { flex: 1; overflow-y: auto; padding: 30px; display: flex; flex-direction: column; gap: 20px; }
         .msg { padding: 15px 20px; border-radius: 12px; font-size: 14px; max-width: 85%; line-height: 1.5; }
         .msg.user { background: #000; color: #ffd600; align-self: flex-end; }
         .msg.ai { background: #fff; border: 1px solid #ddd; align-self: flex-start; }
-
         button { cursor: pointer; border: none; font-weight: 700; }
     </style>
 </head>
@@ -208,7 +210,10 @@ html_template = """
                     if(DATA_MERMAID && DATA_MERMAID !== "null") {
                         setTimeout(() => { 
                             const target = document.getElementById('mermaid-placeholder'); 
-                            if(target) { target.innerHTML = `<div class="mermaid">${DATA_MERMAID}</div>`; mermaid.run(); } 
+                            if(target) { 
+                                target.innerHTML = `<pre class="mermaid">${DATA_MERMAID}</pre>`; 
+                                mermaid.run(); 
+                            } 
                         }, 500);
                         document.getElementById('btn-save-img').style.display = 'block';
                     }
@@ -357,7 +362,15 @@ if modo_admin:
             """
             info_html = clean_html_output(safe_gen(p2))
             
-            mermaid_code = safe_gen("Diagrama mermaid graph TD simple (max 6 nodos) del flujo clínico. Solo código.").replace("```mermaid", "").replace("```", "")
+            # PROMPT 3: MERMAID (MEJORADO PARA EVITAR ERRORES DE SINTAXIS)
+            p3 = """
+            Genera un diagrama Mermaid 'graph TD'. 
+            REGLA DE ORO: Pon TODOS los nombres de los nodos entre comillas dobles, ejemplo: A["Texto con / o %"].
+            REGLA 2: No uses caracteres especiales fuera de las comillas.
+            REGLA 3: Solo código, sin markdown ```.
+            Resume el algoritmo clínico en un máximo de 6 pasos.
+            """
+            mermaid_code = clean_mermaid_code(safe_gen(p3))
             
             st.session_state['temp'] = {'titulo': file.name, 'bytes': pdf_bytes, 'analisis': analisis_txt, 'html': info_html, 'mermaid': mermaid_code}
             st.success("Análisis estructurado completado.")
