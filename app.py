@@ -17,7 +17,7 @@ html_template = """
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Estación Médica V29 (Scroll Fix)</title>
+    <title>Estación Médica V30 (Scroll Nativo)</title>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -27,38 +27,54 @@ html_template = """
     </script>
     
     <style>
-        /* --- LAYOUT MASTER --- */
+        /* --- LAYOUT MASTER (FULL SCREEN) --- */
         body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background: #202124; }
         
         .main-container { display: flex; width: 100vw; height: 100vh; }
         
-        /* --- IZQUIERDA: VISOR PDF (SCROLL MEJORADO) --- */
-        .pdf-section { width: 50%; height: 100%; display: flex; flex-direction: column; border-right: 1px solid #444; background: #525659; }
-        
-        .pdf-toolbar { 
-            height: 50px; background: #323639; display: flex; align-items: center; justify-content: center; gap: 10px; 
-            box-shadow: 0 2px 5px rgba(0,0,0,0.2); z-index: 10; flex-shrink: 0;
+        /* --- IZQUIERDA: VISOR PDF (SOLUCIÓN SCROLL DEFINITIVA) --- */
+        .pdf-section { 
+            width: 50%; 
+            min-width: 50%; 
+            height: 100%; 
+            display: flex; 
+            flex-direction: column; 
+            border-right: 1px solid #444; 
+            background: #525659; 
         }
         
-        /* LA SOLUCIÓN AL SCROLL: Usar block + margin auto en lugar de flex center */
+        .pdf-toolbar { 
+            height: 50px; 
+            background: #323639; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            gap: 15px; 
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2); 
+            z-index: 10; 
+            flex-shrink: 0;
+        }
+        
+        /* EL FIX DE SCROLL: Bloque nativo, no Flexbox */
         .pdf-scroll-container { 
             flex: 1; 
-            overflow: auto; /* Scrollbars automáticas X e Y */
-            padding: 30px; 
+            overflow: auto; /* Esto activa las barras X e Y automáticamente */
+            padding: 40px; 
             background: #525659;
-            display: block; /* Importante: Bloque normal para permitir overflow */
-            text-align: center; /* Centra el contenido inline si sobra espacio */
+            text-align: center; /* Centra el canvas horizontalmente si sobra espacio */
+            position: relative;
         }
 
         .pdf-page-canvas { 
+            display: inline-block; /* Permite centrado con text-align pero respeta dimensiones */
             box-shadow: 0 4px 15px rgba(0,0,0,0.6); 
-            margin: 0 auto 20px auto; /* Centrado automático horizontal y margen abajo */
-            display: block; /* Comportamiento de bloque */
-            max-width: none; /* Permite que crezca infinitamente con el zoom */
+            margin-bottom: 20px; 
+            vertical-align: top;
+            background: white;
         }
 
         /* --- DERECHA: PANELES IA --- */
-        .right-panel { width: 50%; height: 100%; display: flex; flex-direction: column; background: #f8f9fa; }
+        .right-panel { width: 50%; min-width: 50%; height: 100%; display: flex; flex-direction: column; background: #f8f9fa; }
         
         .tabs-header { 
             height: 50px; background: #fff; border-bottom: 1px solid #ddd; display: flex; flex-shrink: 0; 
@@ -80,18 +96,19 @@ html_template = """
             background: #fff;
         }
         
-        .tab-content { display: none; padding: 30px; max-width: 900px; margin: auto; }
+        .tab-content { display: none; padding: 0; max-width: 100%; margin: auto; }
         .tab-content.active { display: block; }
 
         /* MARKDOWN CLÍNICO */
+        .markdown-wrapper { padding: 40px; max-width: 900px; margin: auto; }
         .markdown-body { font-size: 16px; line-height: 1.7; color: #2c3e50; }
         .markdown-body h1 { color: #1565c0; border-bottom: 2px solid #eee; padding-bottom: 10px; margin-top: 0; }
         .markdown-body h2 { color: #2c3e50; margin-top: 30px; border-left: 4px solid #1565c0; padding-left: 10px; }
         .markdown-body strong { color: #c62828; }
 
         /* PÓSTER VISUAL */
-        #infografia-wrapper { display: flex; justify-content: center; background: #e9ecef; padding: 40px; border-radius: 8px; }
-        #infografia-visual-container { width: 800px; background: white; box-shadow: 0 10px 40px rgba(0,0,0,0.2); font-family: 'Roboto', sans-serif; color: #333; overflow: hidden; }
+        #infografia-wrapper { display: flex; justify-content: center; background: #e9ecef; padding: 40px; min-height: 100%; }
+        #infografia-visual-container { width: 800px; background: white; box-shadow: 0 10px 40px rgba(0,0,0,0.2); font-family: 'Roboto', sans-serif; color: #333; overflow: hidden; border-radius: 4px; }
 
         /* Estilos Póster */
         .poster-header { background: linear-gradient(135deg, #0d47a1, #1976d2); color: white; padding: 40px; text-align: center; border-bottom: 5px solid #ffab00; }
@@ -126,11 +143,12 @@ html_template = """
         .btn-primary { background: #1a73e8; color: white; margin-left: auto; display: none; } 
         .btn-pdf { background: #d32f2f; color: white; text-decoration: none; padding: 8px 16px; border-radius: 4px; font-size: 13px; display: none; }
 
+        /* CHAT */
         #chat-history { padding: 20px; height: calc(100% - 70px); overflow-y: auto; }
+        .chat-input-box { padding: 15px; border-top: 1px solid #eee; display: flex; gap: 10px; background: #fff; }
         .msg { padding: 12px 16px; border-radius: 12px; margin-bottom: 12px; max-width: 85%; font-size: 14px; }
         .msg.user { background: #e3f2fd; color: #1565c0; align-self: flex-end; }
         .msg.ai { background: #f5f5f5; color: #333; align-self: flex-start; }
-        .chat-input-box { padding: 15px; border-top: 1px solid #eee; display: flex; gap: 10px; background: #fff; }
     </style>
 </head>
 <body>
@@ -145,9 +163,9 @@ html_template = """
             </div>
             
             <div id="drop-zone" style="flex:1; display:flex; flex-direction:column; justify-content:center; align-items:center; color:#ccc; cursor:pointer;">
-                <div style="font-size:48px; margin-bottom:15px;">📁</div>
+                <div style="font-size:50px; margin-bottom:15px;">📄</div>
                 <div style="font-weight:bold; font-size:18px;">ARRASTRA TU GUÍA CLÍNICA AQUÍ</div>
-                <div style="font-size:13px; margin-top:5px; opacity:0.7;">Análisis + Infografía</div>
+                <div style="font-size:13px; margin-top:5px; opacity:0.7;">Análisis + Infografía + Chat</div>
             </div>
             
             <div id="pdf-container" class="pdf-scroll-container" style="display:none;"></div>
@@ -158,12 +176,12 @@ html_template = """
                 <button class="tab-btn active" onclick="abrirPestana('tab-analisis')">📝 Análisis</button>
                 <button class="tab-btn" onclick="abrirPestana('tab-infografia')">🎨 Infografía Visual</button>
                 <button class="tab-btn" onclick="abrirPestana('tab-chat')">💬 Chat</button>
-                <button id="btn-save-img" class="btn-primary" onclick="descargarPoster()">📸 Descargar</button>
+                <button id="btn-save-img" class="btn-primary" onclick="descargarPoster()">📸 Guardar Imagen</button>
             </div>
             
             <div class="content-area">
                 <div id="tab-analisis" class="tab-content active">
-                    <div class="content-padding">
+                    <div class="markdown-wrapper">
                         <div id="analisis-content" class="markdown-body">
                             <div style="text-align:center; margin-top:100px; color:#bbb;">
                                 Esperando documento...
@@ -175,15 +193,15 @@ html_template = """
                 <div id="tab-infografia" class="tab-content">
                     <div id="infografia-wrapper">
                         <div id="infografia-visual-container">
-                            <div style="padding:60px; text-align:center; color:#999;">
-                                El póster se generará aquí.
+                            <div style="padding:80px; text-align:center; color:#999;">
+                                El póster se generará aquí automáticamente.
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <div id="tab-chat" class="tab-content" style="height:100%; padding:0; max-width:none;">
-                    <div class="chat-container">
+                <div id="tab-chat" class="tab-content" style="height:100%;">
+                    <div style="display: flex; flex-direction: column; height: 100%;">
                         <div id="chat-history"></div>
                         <div class="chat-input-box">
                             <input type="text" id="user-input" placeholder="Pregunta técnica..." style="flex:1; padding:10px; border:1px solid #ddd; border-radius:20px; outline:none;" onkeypress="if(event.key==='Enter') enviarMensaje()">
@@ -218,7 +236,7 @@ html_template = """
             if(id.includes('chat')) document.querySelectorAll('.tab-btn')[2].classList.add('active');
         }
 
-        // --- PDF DRAG & DROP ---
+        // --- PDF LOGIC (SCROLL NATIVO) ---
         const dropZone = document.getElementById('drop-zone');
         dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.style.background = "#444"; });
         dropZone.addEventListener('dragleave', () => { dropZone.style.background = "transparent"; });
@@ -228,7 +246,7 @@ html_template = """
             const file = e.dataTransfer.files[0];
             if(file && file.type === "application/pdf") {
                 dropZone.style.display = "none";
-                document.getElementById('pdf-container').style.display = "flex";
+                document.getElementById('pdf-container').style.display = "block"; // FIX: Block permite overflow nativo
                 
                 document.getElementById('analisis-content').innerHTML = "<div style='text-align:center; margin-top:50px;'>🧠 <b>Diseccionando Guía...</b></div>";
                 document.getElementById('infografia-visual-container').innerHTML = "<div style='padding:80px; text-align:center; color:#999;'>🎨 <b>Diseñando Infografía...</b></div>";
@@ -252,7 +270,6 @@ html_template = """
             const container = document.getElementById('pdf-container'); container.innerHTML = "";
             document.getElementById('zoom-level').innerText = Math.round(scale * 100) + "%";
             
-            // EL FIX DEL SCROLL HORIZONTAL ESTÁ AQUÍ (CSS handle)
             for (let num = 1; num <= pdfDoc.numPages; num++) {
                 const page = await pdfDoc.getPage(num);
                 const viewport = page.getViewport({ scale: scale, rotation: rotation });
@@ -358,29 +375,4 @@ html_template = """
         function limpiarTexto(t) { return t.replace(/```html|```/gi, "").trim(); }
         function limpiarMermaid(t) { let l = t.replace(/```mermaid|```/gi, ""); const i = l.indexOf("graph TD"); if(i !== -1) l = l.substring(i); return l.trim(); }
 
-        async function enviarMensaje() {
-            const i = document.getElementById('user-input');
-            const h = document.getElementById('chat-history');
-            const t = i.value; if(!t) return;
-            h.innerHTML += `<div class="msg user">${t}</div>`; i.value=""; h.scrollTop = h.scrollHeight;
-            const res = await llamarIA(`Respuesta técnica breve: ${t}`);
-            h.innerHTML += `<div class="msg ai">${res ? marked.parse(limpiarTexto(res)) : "Error"}</div>`;
-            h.scrollTop = h.scrollHeight;
-        }
-
-        function descargarPoster() {
-            const el = document.getElementById('infografia-visual-container');
-            html2canvas(el, { scale: 2.5, backgroundColor: "#ffffff" }).then(canvas => {
-                const a = document.createElement('a');
-                a.download = 'Infografia_Medica.png';
-                a.href = canvas.toDataURL('image/png');
-                a.click();
-            });
-        }
-    </script>
-</body>
-</html>
-"""
-
-final_html = html_template.replace("__API_KEY_PLACEHOLDER__", API_KEY)
-components.html(final_html, height=1000, scrolling=True)
+        async
