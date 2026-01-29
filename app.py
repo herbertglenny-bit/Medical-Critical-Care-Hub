@@ -229,4 +229,168 @@ html_template = """
 
         async function renderizarTodo() {
             const container = document.getElementById('pdf-container'); container.innerHTML = "";
-            document
+            document.getElementById('zoom-level').innerText = Math.round(scale * 100) + "%";
+            for (let num = 1; num <= pdfDoc.numPages; num++) {
+                const page = await pdfDoc.getPage(num);
+                const viewport = page.getViewport({ scale: scale, rotation: rotation });
+                const canvas = document.createElement('canvas');
+                canvas.className = 'pdf-page-canvas';
+                canvas.height = viewport.height; canvas.width = viewport.width;
+                container.appendChild(canvas);
+                page.render({ canvasContext: canvas.getContext('2d'), viewport: viewport });
+            }
+        }
+        function ajustarZoom(d) { if(pdfDoc) { scale = Math.max(0.2, scale + d); renderizarTodo(); } }
+
+        async function enviarMensaje() {
+            const i = document.getElementById('user-input'), h = document.getElementById('chat-history');
+            const t = i.value; if(!t) return;
+            h.innerHTML += `<div class="msg user">${t}</div>`; i.value=""; h.scrollTop = h.scrollHeight;
+            const loadingId = "load"+Date.now();
+            h.innerHTML += `<div id="${loadingId}" class="msg ai" style="color:#888">...</div>`;
+            
+            async function tryFetch(prompt, attempts = 0) {
+                if (attempts >= MODELS.length) throw new Error("Todos los modelos fallaron.");
+                const currentModel = MODELS[attempts];
+                try {
+                    const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${currentModel}:generateContent?key=${API_KEY}`, {
+                        method: 'POST', headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({ contents: [{ parts: [{ text: "Responde como médico experto. Breve: " + prompt }, { inline_data: { mime_type: "application/pdf", data: globalPdfBase64 } }] }] })
+                    });
+                    if (!r.ok) throw new Error(r.statusText);
+                    const d = await r.json();
+                    if(d.error) throw new Error(d.error.message);
+                    return d.candidates[0].content.parts[0].text;
+                } catch(e) {
+                    return await tryFetch(prompt, attempts + 1);
+                }
+            }
+
+            try {
+                const text = await tryFetch(t);
+                document.getElementById(loadingId).remove();
+                h.innerHTML += `<div class="msg ai">${marked.parse(text)}</div>`;
+            } catch(e) { document.getElementById(loadingId).innerHTML = "Error de red/IA."; }
+            h.scrollTop = h.scrollHeight;
+        }
+
+        function descargarPoster() {
+            const el = document.getElementById('infografia-visual-container');
+            html2canvas(el, { scale: 3, windowWidth: el.scrollWidth, windowHeight: el.scrollHeight, backgroundColor: "#ffffff" }).then(canvas => {
+                const a = document.createElement('a'); a.download = 'Infografia_Medica.png'; a.href = canvas.toDataURL('image/png'); a.click();
+            });
+        }
+    </script>
+</body>
+</html>
+"""
+
+# --- SIDEBAR ---
+with st.sidebar:
+    st.header("🏥 Biblioteca")
+    modo_admin = st.checkbox("Modo Administrador")
+    st.divider()
+    guias = obtener_guias()
+    if not guias: st.info("Biblioteca vacía.")
+    
+    for g_id, g_titulo, g_fecha in guias:
+        col1, col2 = st.columns([0.8, 0.2])
+        if col1.button(f"📄 {g_titulo}", key=f"btn_{g_id}", use_container_width=True):
+            st.session_state['active_guide_id'] = g_id
+            st.rerun()
+        if modo_admin:
+            if col2.button("❌", key=f"del_{g_id}"):
+                borrar_guia(g_id)
+                st.rerun()
+
+if modo_admin:
+    st.title("⚙️ Administrador: Cargar Nueva Guía")
+    uploaded_file = st.file_uploader("Subir PDF", type="pdf")
+    
+    if uploaded_file and st.button("🚀 Procesar con IA"):
+        with st.spinner("Procesando... esto puede tardar unos segundos..."):
+            genai.configure(api_key=API_KEY)
+            pdf_bytes = uploaded_file.read()
+            
+            # --- FUNCIÓN DE SEGURIDAD V46: Usar SOLO lo que Google nos diga ---
+            def try_generate_auto(prompt_text, file_bytes):
+                # 1. Obtenemos lista real
+                try:
+                    real_models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
+                except:
+                    real_models = ["models/gemini-1.5-flash", "models/gemini-pro"] # Fallback
+
+                last_error = ""
+                # 2. Probamos en orden de lista real
+                for m_name in real_models:
+                    try:
+                        model = genai.GenerativeModel(m_name)
+                        response = model.generate_content([{'mime_type': 'application/pdf', 'data': file_bytes}, prompt_text])
+                        return response.text, m_name
+                    except Exception as e:
+                        last_error = str(e)
+                        time.sleep(1)
+                        continue
+                raise Exception(f"Ningún modelo funcionó. Error final: {last_error}")
+            
+            try:
+                analisis_txt, used_model = try_generate_auto("ERES UN MOTOR DE DATOS. EMPIEZA DIRECTO CON EL TÍTULO (#). Analiza: 1.Definiciones 2.Algoritmo 3.Soporte 4.Semáforo 5.Poblaciones.", pdf_bytes)
+                st.info(f"Análisis completado con: {used_model}")
+                
+                info_html, _ = try_generate_auto("""Genera SOLO HTML para PÓSTER MÉDICO (Diseño V31). 
+                <div class="poster-header"><h1 class="poster-title">TITULO</h1><div class="poster-meta">META</div></div>
+                <div class="poster-body">...contenido estructurado...<div id="mermaid-placeholder" class="poster-mermaid"></div></div>
+                <div class="poster-footer">...</div>""", pdf_bytes)
+                info_html = info_html.replace("```html", "").replace("```", "")
+                
+                mermaid_code, _ = try_generate_auto("Crea 'mermaid graph TD' SIMPLE. Solo código.", pdf_bytes)
+                mermaid_code = mermaid_code.replace("```mermaid", "").replace("```", "")
+                
+                st.session_state['temp_upload'] = {
+                    'titulo': uploaded_file.name,
+                    'bytes': pdf_bytes,
+                    'analisis': analisis_txt,
+                    'html': info_html,
+                    'mermaid': mermaid_code
+                }
+                st.success("Procesado con éxito.")
+                
+            except Exception as e:
+                st.error(f"Error IA: {str(e)}")
+
+    if 'temp_upload' in st.session_state:
+        st.write("---")
+        titulo_final = st.text_input("Título", value=st.session_state['temp_upload']['titulo'])
+        if st.button("💾 Guardar en Biblioteca"):
+            guardar_guia(titulo_final, st.session_state['temp_upload']['bytes'], st.session_state['temp_upload']['analisis'], st.session_state['temp_upload']['html'], st.session_state['temp_upload']['mermaid'])
+            del st.session_state['temp_upload']
+            st.success("Guardado.")
+            st.rerun()
+
+else:
+    if 'active_guide_id' in st.session_state:
+        guia = obtener_guia_por_id(st.session_state['active_guide_id'])
+        if guia:
+            g_pdf_b64 = base64.b64encode(guia[3]).decode('utf-8')
+            g_analisis = guia[4].replace("`", "\`").replace("${", "\${")
+            g_html = guia[5].replace("`", "\`")
+            g_mermaid = guia[6].replace("`", "\`")
+            
+            # V46: Pasamos la lista de modelos disponibles al JS
+            import json
+            try:
+                real_models_js = [m.name.replace("models/", "") for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
+            except:
+                real_models_js = ["gemini-1.5-flash", "gemini-pro"]
+            
+            final_html = html_template.replace("__API_KEY__", API_KEY)
+            final_html = final_html.replace("__MODELS_JSON__", json.dumps(real_models_js))
+            final_html = final_html.replace("__PDF_DATA__", g_pdf_b64)
+            final_html = final_html.replace("__ANALISIS_DATA__", g_analisis)
+            final_html = final_html.replace("__INFO_DATA__", g_html)
+            final_html = final_html.replace("__MERMAID_DATA__", g_mermaid)
+            
+            components.html(final_html, height=1000, scrolling=False)
+    else:
+        st.title("Bienvenido")
+        st.info("👈 Selecciona una guía.")
