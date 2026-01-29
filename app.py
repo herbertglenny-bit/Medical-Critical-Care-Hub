@@ -17,7 +17,7 @@ html_template = """
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Estación Médica V38 (Visual Feedback)</title>
+    <title>Estación Médica V39 (UI Fix)</title>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -27,38 +27,65 @@ html_template = """
     </script>
     
     <style>
-        /* --- GLOBAL --- */
+        /* --- RESET GLOBAL PARA EVITAR SCROLL GENERAL --- */
+        * { box-sizing: border-box; }
         body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; font-family: 'Segoe UI', Roboto, sans-serif; background: #202124; }
-        .main-container { display: flex; width: 100vw; height: 100vh; }
         
-        /* --- VISOR PDF --- */
-        .pdf-section { width: 50%; height: 100%; display: flex; flex-direction: column; border-right: 1px solid #444; background: #525659; }
-        .pdf-toolbar { height: 50px; background: #323639; display: flex; align-items: center; justify-content: center; gap: 15px; box-shadow: 0 2px 5px rgba(0,0,0,0.2); z-index: 10; flex-shrink: 0; }
-        .pdf-scroll-container { flex: 1; overflow: auto; padding: 40px; background: #525659; text-align: center; display: block; }
+        /* Contenedor Maestro: Ocupa exactamente la pantalla */
+        .main-container { display: flex; width: 100vw; height: 100vh; overflow: hidden; }
+        
+        /* --- IZQUIERDA: VISOR PDF --- */
+        .pdf-section { 
+            width: 50%; min-width: 50%; height: 100%; 
+            display: flex; flex-direction: column; 
+            border-right: 1px solid #444; background: #525659; 
+        }
+        .pdf-toolbar { 
+            height: 50px; background: #323639; display: flex; align-items: center; justify-content: center; gap: 15px; 
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2); z-index: 10; flex-shrink: 0; 
+        }
+        .pdf-scroll-container { 
+            flex: 1; /* Ocupa el resto */
+            overflow: auto; /* Scroll interno solo aquí */
+            padding: 40px; background: #525659; text-align: center; display: block; 
+        }
         .pdf-page-canvas { display: inline-block; box-shadow: 0 4px 15px rgba(0,0,0,0.6); margin-bottom: 20px; vertical-align: top; background: white; }
 
-        /* --- PANELES IA --- */
-        .right-panel { width: 50%; height: 100%; display: flex; flex-direction: column; background: #f0f2f5; }
-        .tabs-header { height: 50px; background: #fff; border-bottom: 1px solid #ddd; display: flex; flex-shrink: 0; z-index: 5; }
+        /* --- DERECHA: PANELES IA --- */
+        .right-panel { 
+            width: 50%; min-width: 50%; height: 100%; 
+            display: flex; flex-direction: column; 
+            background: #f0f2f5; 
+        }
+        
+        .tabs-header { 
+            height: 50px; background: #fff; border-bottom: 1px solid #ddd; display: flex; flex-shrink: 0; z-index: 5; 
+        }
         .tab-btn { flex: 1; border: none; background: transparent; cursor: pointer; font-weight: 600; color: #5f6368; font-size: 14px; border-bottom: 3px solid transparent; }
         .tab-btn.active { color: #1a73e8; border-bottom: 3px solid #1a73e8; background: #e8f0fe; }
         
-        .content-area { flex: 1; overflow: auto; position: relative; display: flex; flex-direction: column; }
-        .tab-content { display: none; width: 100%; }
-        .tab-content.active { display: block; }
+        #status-bar { padding: 8px; background: #fff9c4; color: #f57f17; text-align: center; font-weight: bold; font-size: 12px; border-bottom: 1px solid #fff176; display: none; flex-shrink: 0; }
 
-        /* STATUS BAR MEJORADO */
-        #status-bar { padding: 12px; background: #e3f2fd; color: #1565c0; text-align: center; font-weight: bold; font-size: 13px; border-bottom: 1px solid #bbdefb; display: none; transition: all 0.3s; }
-        .status-error { background: #ffebee !important; color: #c62828 !important; border-bottom: 1px solid #ef9a9a !important; }
+        /* ÁREA DE CONTENIDO: Flexible pero contenida */
+        .content-area { 
+            flex: 1; 
+            overflow: hidden; /* IMPORTANTE: El scroll lo manejan los hijos */
+            position: relative; 
+            display: flex;
+            flex-direction: column;
+        }
+        
+        /* Pestaña: Ocupa todo el espacio y maneja su propio scroll */
+        .tab-content { display: none; width: 100%; height: 100%; overflow-y: auto; }
+        .tab-content.active { display: block; }
 
         /* --- MARKDOWN --- */
         .markdown-wrapper { padding: 40px; max-width: 900px; margin: auto; background: white; min-height: 100%; }
-        .markdown-body { font-size: 16px; line-height: 1.7; color: #2c3e50; }
+        .markdown-body { font-size: 16px; line-height: 1.7; color: #2c3e50; padding-bottom: 50px; }
         .markdown-body h1 { color: #1565c0; border-bottom: 2px solid #eee; margin-top: 0; }
-        .markdown-body h2 { color: #2c3e50; margin-top: 30px; border-left: 4px solid #1565c0; padding-left: 10px; }
 
         /* --- INFOGRAFÍA --- */
-        #infografia-wrapper { padding: 50px; text-align: center; min-height: 100%; background: #dce1e6; display: block; }
+        #infografia-wrapper { padding: 50px; text-align: center; min-height: 100%; background: #dce1e6; }
         #infografia-visual-container { width: 900px; margin: 0 auto; background: white; box-shadow: 0 15px 50px rgba(0,0,0,0.2); font-family: 'Roboto', sans-serif; color: #333; text-align: left; overflow: visible; display: inline-block; }
 
         /* Estilos Póster */
@@ -92,12 +119,29 @@ html_template = """
         .btn-primary { background: #0d47a1; color: white; margin-left: auto; display: none; }
         .btn-pdf { background: #c5221f; color: white; text-decoration: none; padding: 8px 16px; border-radius: 4px; font-size: 13px; display: none; }
 
-        /* CHAT */
-        #chat-history { padding: 20px; height: calc(100% - 70px); overflow-y: auto; }
-        .chat-input-box { padding: 15px; border-top: 1px solid #eee; display: flex; gap: 10px; background: #fff; }
+        /* --- CHAT FIX (Layout Vertical Estricto) --- */
+        #tab-chat { display: none; height: 100%; display: flex; flex-direction: column; overflow: hidden; }
+        .chat-layout { display: flex; flex-direction: column; height: 100%; }
+        
+        #chat-history { 
+            flex: 1; /* Ocupa todo el espacio disponible */
+            overflow-y: auto; /* Scroll solo aquí */
+            padding: 20px; 
+            background: #fff;
+        }
+        
+        .chat-input-box { 
+            height: 70px; /* Altura fija */
+            padding: 15px; 
+            border-top: 1px solid #eee; 
+            display: flex; gap: 10px; 
+            background: #f8f9fa; 
+            flex-shrink: 0; /* No encoger */
+        }
+        
         .msg { padding: 12px 16px; border-radius: 12px; margin-bottom: 12px; font-size: 14px; max-width: 85%; }
         .msg.user { background: #e3f2fd; color: #1565c0; align-self: flex-end; }
-        .msg.ai { background: #fff; border: 1px solid #eee; align-self: flex-start; }
+        .msg.ai { background: #f1f1f1; border: 1px solid #eee; align-self: flex-start; }
     </style>
 </head>
 <body>
@@ -148,8 +192,8 @@ html_template = """
                     </div>
                 </div>
 
-                <div id="tab-chat" class="tab-content" style="height:100%;">
-                    <div style="display: flex; flex-direction: column; height: 100%;">
+                <div id="tab-chat" style="display:none; width:100%; height:100%; flex-direction:column;">
+                    <div class="chat-layout">
                         <div id="chat-history"></div>
                         <div class="chat-input-box">
                             <input type="text" id="user-input" placeholder="Pregunta técnica..." style="flex:1; padding:10px; border:1px solid #ddd; border-radius:20px; outline:none;" onkeypress="if(event.key==='Enter') enviarMensaje()">
@@ -163,31 +207,36 @@ html_template = """
 
     <script>
         const API_KEY = "__API_KEY_PLACEHOLDER__"; 
-        
-        // --- V38: OPTIMIZACIÓN DE MODELOS ---
-        // Ponemos el modelo Flash (el más rápido y con mayor límite) PRIMERO.
-        const MODEL_CANDIDATES = [
-            "gemini-1.5-flash", 
-            "gemini-2.0-flash-exp", 
-            "gemini-1.5-pro"
-        ];
+        const MODEL_CANDIDATES = ["gemini-1.5-flash", "gemini-2.0-flash-exp", "gemini-1.5-pro"];
         let WORKING_MODEL = null;
         let pdfDoc = null, scale = 1.0, rotation = 0, globalPdfBase64 = null;
         mermaid.initialize({ startOnLoad: false, theme: 'neutral', securityLevel: 'loose' });
 
         function abrirPestana(id) {
-            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-            document.getElementById(id).classList.add('active');
+            // Ocultar todas
+            document.getElementById('tab-analisis').style.display = 'none';
+            document.getElementById('tab-infografia').style.display = 'none';
+            document.getElementById('tab-chat').style.display = 'none';
             
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            
+            // Mostrar seleccionada (Chat requiere display flex, otras block)
+            const tab = document.getElementById(id);
+            if (id === 'tab-chat') {
+                tab.style.display = 'flex';
+            } else {
+                tab.style.display = 'block';
+            }
+            
+            // Botones
+            if(id.includes('analisis')) document.querySelectorAll('.tab-btn')[0].classList.add('active');
+            if(id.includes('infografia')) document.querySelectorAll('.tab-btn')[1].classList.add('active');
+            if(id.includes('chat')) document.querySelectorAll('.tab-btn')[2].classList.add('active');
+
             const btn = document.getElementById('btn-save-img');
             const hasContent = document.querySelector('.poster-title');
             if(id === 'tab-infografia' && hasContent) btn.style.display = 'block';
             else btn.style.display = 'none';
-
-            if(id.includes('analisis')) document.querySelectorAll('.tab-btn')[0].classList.add('active');
-            if(id.includes('infografia')) document.querySelectorAll('.tab-btn')[1].classList.add('active');
-            if(id.includes('chat')) document.querySelectorAll('.tab-btn')[2].classList.add('active');
         }
 
         const dropZone = document.getElementById('drop-zone');
@@ -200,15 +249,14 @@ html_template = """
             if(file && file.type === "application/pdf") {
                 dropZone.style.display = "none";
                 document.getElementById('pdf-container').style.display = "block"; 
-                document.getElementById('analisis-content').innerHTML = "<div style='text-align:center; margin-top:50px;'>🧠 <b>Esperando turno de procesamiento...</b></div>";
-                document.getElementById('infografia-visual-container').innerHTML = "<div style='padding:80px; text-align:center; color:#999;'>🎨 <b>En cola...</b></div>";
-                
+                document.getElementById('analisis-content').innerHTML = "<div style='text-align:center; margin-top:50px;'>🧠 <b>Esperando turno...</b></div>";
+                document.getElementById('infografia-visual-container').innerHTML = "<div style='padding:80px; text-align:center; color:#999;'>🎨 <b>Esperando turno...</b></div>";
                 const fileURL = URL.createObjectURL(file);
                 document.getElementById('btn-download').href = fileURL;
                 document.getElementById('btn-download').style.display = 'inline-block';
                 cargarPDF(fileURL);
                 const reader = new FileReader();
-                reader.onload = async () => { globalPdfBase64 = reader.result.split(',')[1]; iniciarSecuenciaRobusta(); };
+                reader.onload = async () => { globalPdfBase64 = reader.result.split(',')[1]; iniciarSecuenciaBlindada(); };
                 reader.readAsDataURL(file);
             }
         });
@@ -229,40 +277,31 @@ html_template = """
         }
         function ajustarZoom(d) { if(pdfDoc) { scale = Math.max(0.2, scale + d); renderizarTodo(); } }
 
-        // --- SECUENCIA CON FEEDBACK VISUAL (V38) ---
-        async function iniciarSecuenciaRobusta() {
+        // --- SECUENCIA ---
+        async function iniciarSecuenciaBlindada() {
             const sb = document.getElementById('status-bar');
-            sb.className = ""; // Reset errors
             sb.style.display = 'block';
             
-            // PASO 1: ANÁLISIS
             sb.innerText = "🧠 Paso 1/3: Analizando Documento...";
             await procesarAnalisisTexto();
             
-            // COOLDOWN DE SEGURIDAD
-            sb.innerText = "⏳ Sincronizando con Google AI (Espera 4s)...";
-            await new Promise(r => setTimeout(r, 4000));
+            // Wait 5s
+            for(let i=5; i>0; i--) {
+                sb.innerText = `⏳ Esperando ${i}s para evitar saturación...`;
+                await new Promise(r => setTimeout(r, 1000));
+            }
 
-            // PASO 2: INFOGRAFÍA
-            sb.innerText = "🎨 Paso 2/3: Generando Póster Visual...";
+            sb.innerText = "🎨 Paso 2/3: Generando Infografía...";
             await procesarInfografiaVisual();
 
-            // FIN
-            sb.innerText = "✅ Todo Listo";
+            sb.innerText = "✅ Listo";
             setTimeout(() => { sb.style.display = 'none'; }, 3000);
         }
 
         async function procesarAnalisisTexto() {
-            const prompt = `
-            ERES UN MOTOR DE DATOS. PROHIBIDO SALUDAR. EMPIEZA DIRECTO CON EL TÍTULO (# Título).
-            Analiza la Guía: 1. Definiciones 2. Algoritmo Agudo 3. Soporte Vital 4. Semáforo Evidencia 5. Poblaciones.
-            `;
+            const prompt = `ERES UN MOTOR DE DATOS. PROHIBIDO SALUDAR. TÍTULO (#) DIRECTO. Analiza: 1.Definiciones 2.Algoritmo 3.Soporte 4.Semáforo 5.Poblaciones`;
             const res = await llamarIA(prompt);
-            if(res && !res.startsWith("Error")) {
-                document.getElementById('analisis-content').innerHTML = marked.parse(limpiarTexto(res));
-            } else {
-                mostrarError("Fallo en Análisis: " + res);
-            }
+            if(res && !res.startsWith("Error")) document.getElementById('analisis-content').innerHTML = marked.parse(limpiarTexto(res));
         }
 
         async function procesarInfografiaVisual() {
@@ -286,53 +325,39 @@ html_template = """
             </div>
             <div class="poster-footer"><h3>TAKE HOME</h3><div class="footer-list"><div class="footer-item">M1</div></div></div>
             `;
-            
             const html = await llamarIA(promptPoster);
             if(html && !html.startsWith("Error")) {
                 document.getElementById('infografia-visual-container').innerHTML = limpiarTexto(html);
-                
-                // Gráfico (Paso 3 implícito)
+                await new Promise(r => setTimeout(r, 2000));
                 const target = document.getElementById('mermaid-placeholder');
                 if(target) {
                     target.innerHTML = "Generando gráfico...";
-                    await new Promise(r => setTimeout(r, 1500)); // Pequeña pausa extra
                     const mer = await llamarIA(`Crea 'mermaid graph TD' SIMPLE (max 8 nodos). TEXTOS ENTRE COMILLAS DOBLES. Solo código.`);
                     if(mer && !mer.startsWith("Error")) {
                         target.innerHTML = `<div class="mermaid">${limpiarMermaid(mer)}</div>`;
                         try { mermaid.run(); } catch(e){}
                     }
                 }
-                if(document.getElementById('tab-infografia').classList.contains('active')) {
+                if(document.getElementById('tab-infografia').classList.contains('active') || document.getElementById('tab-infografia').style.display === 'block') {
                     document.getElementById('btn-save-img').style.display = 'block';
                 }
-            } else {
-                mostrarError("Fallo en Infografía: " + html);
             }
         }
 
-        // --- MOTOR IA CON RETRY Y FEEDBACK VISUAL ---
         async function llamarIA(p, attempt = 1) {
-            const MAX_RETRIES = 5;
-            const sb = document.getElementById('status-bar');
-            
             try {
-                // Seleccionar modelo (Flash primero)
-                let model = MODEL_CANDIDATES[0]; 
-                if(attempt > 2) model = MODEL_CANDIDATES[1]; // Cambiar a experimental si falla mucho
-                
-                // Llamada
-                const res = await fetchGemini(p, model);
-                return res;
-
+                if (WORKING_MODEL) return await fetchGemini(p, WORKING_MODEL);
+                for (let m of MODEL_CANDIDATES) {
+                    const r = await fetchGemini(p, m);
+                    if (r && !r.startsWith("Error")) { WORKING_MODEL = m; return r; }
+                }
+                throw new Error("Fail");
             } catch (e) {
-                if (attempt <= MAX_RETRIES) {
-                    const waitTime = 3000 * attempt; // 3s, 6s, 9s...
-                    sb.innerText = `⚠️ Saturación detectada. Reintentando (${attempt}/${MAX_RETRIES}) en ${waitTime/1000}s...`;
-                    console.warn(`Retry ${attempt} in ${waitTime}ms`);
-                    await new Promise(r => setTimeout(r, waitTime));
+                if (attempt <= 5) {
+                    await new Promise(r => setTimeout(r, 5000));
                     return llamarIA(p, attempt + 1);
                 }
-                return "Error: Servicio saturado. Intente más tarde.";
+                return "Error: Servicio saturado.";
             }
         }
 
@@ -343,34 +368,23 @@ html_template = """
                     method: 'POST', headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({ contents: [{ parts: [{ text: prompt }, { inline_data: { mime_type: "application/pdf", data: globalPdfBase64 } }] }] })
                 });
-                if (r.status === 429) throw new Error("429"); // Forzar retry
+                if (r.status === 429) throw new Error("429");
                 const d = await r.json();
                 if(d.error) throw new Error(d.error.message);
                 return d.candidates[0].content.parts[0].text;
-            } catch(e) { throw e; } // Propagar error para que el retry lo pille
-        }
-
-        function mostrarError(msg) {
-            const sb = document.getElementById('status-bar');
-            sb.innerText = "❌ " + msg;
-            sb.className = "status-error";
-            sb.style.display = "block";
+            } catch(e) { throw e; }
         }
 
         function limpiarTexto(t) { return t.replace(/```html|```/gi, "").trim(); }
         function limpiarMermaid(t) { let l = t.replace(/```mermaid|```/gi, ""); const i = l.indexOf("graph TD"); if(i !== -1) l = l.substring(i); return l.trim(); }
 
-        // --- CHAT ---
         async function enviarMensaje() {
             const i = document.getElementById('user-input'), h = document.getElementById('chat-history');
             const t = i.value; if(!t) return;
             h.innerHTML += `<div class="msg user">${t}</div>`; i.value=""; h.scrollTop = h.scrollHeight;
-            
-            // Usamos llamarIA para que tenga retries también
             const r = await llamarIA(`Respuesta técnica breve: ${t}`);
-            const content = (!r.startsWith("Error")) ? marked.parse(limpiarTexto(r)) : `<span style="color:red">${r}</span>`;
-            h.innerHTML += `<div class="msg ai">${content}</div>`;
-            h.scrollTop = h.scrollHeight;
+            const c = (!r.startsWith("Error")) ? marked.parse(limpiarTexto(r)) : `<span style="color:red">${r}</span>`;
+            h.innerHTML += `<div class="msg ai">${c}</div>`; h.scrollTop = h.scrollHeight;
         }
 
         function descargarPoster() {
