@@ -9,7 +9,7 @@ import google.generativeai as genai
 import time
 
 # Configuración
-st.set_page_config(page_title="NanoBanana Medical V52", layout="wide", initial_sidebar_state="expanded")
+st.set_page_config(page_title="NanoBanana Medical V53", layout="wide", initial_sidebar_state="expanded")
 
 # --- SEGURIDAD ---
 try:
@@ -71,7 +71,6 @@ init_db()
 
 # --- LIMPIEZA DE DATOS ---
 def clean_analysis_text(text):
-    # Eliminar preámbulos tipo "Aquí tienes..." o explicaciones
     lines = text.split('\n')
     cleaned_lines = []
     found_start = False
@@ -79,7 +78,6 @@ def clean_analysis_text(text):
         if line.strip().startswith('#'):
             found_start = True
         if found_start:
-            # Eliminar basura de LaTeX que ensucia dosis y porcentajes
             line = line.replace('\\%', '%').replace('$', '').replace('\\_', '_').replace('\\>', '>').replace('\\pm', '+/-').replace('\\text', '')
             cleaned_lines.append(line)
     return '\n'.join(cleaned_lines).strip()
@@ -114,7 +112,7 @@ html_template = """
         .pdf-scroll-container { flex: 1; overflow: auto; padding: 30px; text-align: center; }
         .pdf-page-canvas { display: inline-block; box-shadow: 0 10px 30px rgba(0,0,0,0.5); margin-bottom: 20px; background: white; }
 
-        .right-panel { width: 50%; height: 100%; display: flex; flex-direction: column; background: #fdfdfd; }
+        .right-panel { width: 50%; min-width: 50%; height: 100%; display: flex; flex-direction: column; background: #fdfdfd; }
         .tabs-header { height: 55px; background: #fff; border-bottom: 3px solid #ffd600; display: flex; flex-shrink: 0; }
         .tab-btn { flex: 1; border: none; background: transparent; cursor: pointer; font-weight: 800; color: #444; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; }
         .tab-btn.active { background: #ffd600; color: #000; }
@@ -151,9 +149,11 @@ html_template = """
         #tab-chat { display: none; width: 100%; height: 100%; flex-direction: column; background: #f5f5f5; }
         .chat-input-box { height: 80px; padding: 15px 25px; background: #fff; border-bottom: 1px solid #ddd; display: flex; gap: 10px; align-items: center; flex-shrink: 0; }
         #chat-history { flex: 1; overflow-y: auto; padding: 30px; display: flex; flex-direction: column; gap: 20px; }
-        .msg { padding: 15px 20px; border-radius: 15px; font-size: 14px; max-width: 85%; line-height: 1.5; }
+        .msg { padding: 15px 20px; border-radius: 12px; font-size: 14px; max-width: 85%; line-height: 1.5; }
         .msg.user { background: #000; color: #ffd600; align-self: flex-end; }
         .msg.ai { background: #fff; border: 1px solid #ddd; align-self: flex-start; }
+
+        button { cursor: pointer; border: none; font-weight: 700; }
     </style>
 </head>
 <body>
@@ -168,7 +168,7 @@ html_template = """
         </div>
         <div class="right-panel">
             <div class="tabs-header">
-                <button class="tab-btn active" onclick="abrirPestana('tab-analisis')">Resumen Jefe Servicio</button>
+                <button class="tab-btn active" onclick="abrirPestana('tab-analisis')">Análisis de la guía</button>
                 <button class="tab-btn" onclick="abrirPestana('tab-infografia')">Póster Visual</button>
                 <button class="tab-btn" onclick="abrirPestana('tab-chat')">Consultas</button>
                 <button id="btn-save-img" style="background:#000;color:#ffd600;padding:0 15px;border-radius:50px;margin-left:auto;display:none;font-size:10px;" onclick="descargarPoster()">📸 GUARDAR</button>
@@ -262,7 +262,7 @@ html_template = """
             async function tryFetch(prompt, attempts = 0) {
                 if (attempts >= MODELS.length) throw new Error("Agotado");
                 const model = MODELS[attempts];
-                const finalPrompt = `ERES UN JEFE DE UCI EXPERTO. RESPONDE ESTRICTAMENTE SEGÚN EL PDF. HISTORIAL: ${context}. PREGUNTA: ${prompt}`;
+                const finalPrompt = `ERES UN JEFE DE UCI EXPERTO. RESPONDE ESTRICTAMENTE SEGÚN EL PDF ADJUNTO. HISTORIAL: ${context}. PREGUNTA: ${prompt}`;
                 try {
                     const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${API_KEY}`, {
                         method: 'POST', headers: {'Content-Type': 'application/json'},
@@ -285,7 +285,7 @@ html_template = """
         function descargarPoster() {
             const el = document.getElementById('infografia-visual-container');
             html2canvas(el, { scale: 3, useCORS: true }).then(canvas => {
-                const a = document.createElement('a'); a.download = 'Handover_NanoBanana.png'; a.href = canvas.toDataURL(); a.click();
+                const a = document.createElement('a'); a.download = 'Infografia_NanoBanana.png'; a.href = canvas.toDataURL(); a.click();
             });
         }
     </script>
@@ -311,7 +311,7 @@ with st.sidebar:
                 st.rerun()
 
 if modo_admin:
-    st.title("Gestión de Sesiones Clínicas")
+    st.title("Administrador de Sesiones")
     file = st.file_uploader("Subir GPC (PDF)", type="pdf")
     if file and st.button("🚀 TRANSFORMAR GUÍA CON IA"):
         with st.spinner("Procesando análisis técnico..."):
@@ -324,7 +324,7 @@ if modo_admin:
                     except: continue
                 return ""
 
-            # --- PROMPT 1: JEFE DE SERVICIO (TUS INSTRUCCIONES) ---
+            # PROMPT 1: ANÁLISIS DE LA GUÍA
             p1 = """
             # ROL
             Actúa como un Jefe de Servicio de Medicina Intensiva, experto en MBE y Director de Residentes.
@@ -332,33 +332,31 @@ if modo_admin:
             TIENES PROHIBIDO SALUDAR O HACER INTRODUCCIONES. TU RESPUESTA DEBE EMPEZAR CON EL CARÁCTER #.
             USA TEXTO PLANO. NADA DE LATEX (NO USES $, _, {, }, text).
             # OBJETIVO
-            Genera un informe estructurado según estos puntos:
+            Analiza en profundidad la Guía adjunta según estos puntos:
             1. Resumen Ejecutivo y Rigor: Rigor metodológico y Paciente Tipo.
             2. Análisis Delta: Ruptura con la práctica anterior (Novedades, Des-implementación/De-adoption, Cambios en Umbrales exactos).
             3. Guía Operativa Bedside (Checklist): Algoritmo de decisiones y Bundles audidatbles.
             4. El Rincón del Residente: Racional fisiopatológico, Trial Pivot (RCT fundamental), Flashcards de guardia y Mini-caso clínico evaluativo de 3 líneas.
-            5. Áreas de Incertidumbre y Juicio Clínico: Zonas grises y perfiles donde desviarse de la guía.
+            5. Áreas de Incertidumbre y Juicio Clínico.
             """
-            analisis_raw = safe_gen(p1)
-            analisis_txt = clean_analysis_text(analisis_raw)
+            analisis_txt = clean_analysis_text(safe_gen(p1))
             
-            # --- PROMPT 2: INFOGRAFÍA TÉCNICA (TUS INSTRUCCIONES) ---
+            # PROMPT 2: INFOGRAFÍA
             p2 = """
             # ROL
             Experto en Comunicación Científica Visual. Estructura una Infografía Técnica NanoBanana Style.
             # INSTRUCCIONES
             USA TEXTO TELEGRÁFICO. NADA DE LATEX. SOLO HTML PURO.
-            # SECCIONES OBLIGATORIAS (Usa estas clases):
+            # SECCIONES OBLIGATORIAS:
             - poster-header (poster-title, poster-meta)
             - poster-body (section-title)
-            - traffic-container (tc-stop: Rojo STOP, tc-wait: Amarillo PRECAUCIÓN, tc-go: Verde GO)
-            - metrics-grid (metric-card -> metric-val, metric-lbl) -> "The Big Numbers"
+            - traffic-container (tc-stop, tc-wait, tc-go)
+            - metrics-grid (metric-card -> metric-val, metric-lbl)
             - ALGORITMO: <div id="mermaid-placeholder" class="poster-mermaid"></div>
-            - SECCIÓN 5: Resumen Ejecutivo (Take Home Messages).
+            - Resumen Ejecutivo (Take Home Messages).
             """
             info_html = clean_html_output(safe_gen(p2))
             
-            # --- PROMPT 3: MERMAID ---
             mermaid_code = safe_gen("Diagrama mermaid graph TD simple (max 6 nodos) del flujo clínico. Solo código.").replace("```mermaid", "").replace("```", "")
             
             st.session_state['temp'] = {'titulo': file.name, 'bytes': pdf_bytes, 'analisis': analisis_txt, 'html': info_html, 'mermaid': mermaid_code}
@@ -389,4 +387,4 @@ else:
             components.html(final_html, height=1100, scrolling=False)
     else:
         st.title("Handover Médico NanoBanana")
-        st.info("👈 Selecciona una guía clínica procesada para visualizar el análisis de alto nivel.")
+        st.info("👈 Selecciona una guía clínica en el menú lateral.")
