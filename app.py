@@ -17,7 +17,7 @@ html_template = """
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Estación Médica V39 (UI Fix)</title>
+    <title>Estación Médica V40 (Input Top)</title>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -27,57 +27,29 @@ html_template = """
     </script>
     
     <style>
-        /* --- RESET GLOBAL PARA EVITAR SCROLL GENERAL --- */
+        /* --- GLOBAL --- */
         * { box-sizing: border-box; }
         body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; font-family: 'Segoe UI', Roboto, sans-serif; background: #202124; }
-        
-        /* Contenedor Maestro: Ocupa exactamente la pantalla */
-        .main-container { display: flex; width: 100vw; height: 100vh; overflow: hidden; }
+        .main-container { display: flex; width: 100vw; height: 100vh; }
         
         /* --- IZQUIERDA: VISOR PDF --- */
-        .pdf-section { 
-            width: 50%; min-width: 50%; height: 100%; 
-            display: flex; flex-direction: column; 
-            border-right: 1px solid #444; background: #525659; 
-        }
-        .pdf-toolbar { 
-            height: 50px; background: #323639; display: flex; align-items: center; justify-content: center; gap: 15px; 
-            box-shadow: 0 2px 5px rgba(0,0,0,0.2); z-index: 10; flex-shrink: 0; 
-        }
-        .pdf-scroll-container { 
-            flex: 1; /* Ocupa el resto */
-            overflow: auto; /* Scroll interno solo aquí */
-            padding: 40px; background: #525659; text-align: center; display: block; 
-        }
+        .pdf-section { width: 50%; height: 100%; display: flex; flex-direction: column; border-right: 1px solid #444; background: #525659; }
+        .pdf-toolbar { height: 50px; background: #323639; display: flex; align-items: center; justify-content: center; gap: 15px; box-shadow: 0 2px 5px rgba(0,0,0,0.2); z-index: 10; flex-shrink: 0; }
+        .pdf-scroll-container { flex: 1; overflow: auto; padding: 40px; background: #525659; text-align: center; display: block; }
         .pdf-page-canvas { display: inline-block; box-shadow: 0 4px 15px rgba(0,0,0,0.6); margin-bottom: 20px; vertical-align: top; background: white; }
 
         /* --- DERECHA: PANELES IA --- */
-        .right-panel { 
-            width: 50%; min-width: 50%; height: 100%; 
-            display: flex; flex-direction: column; 
-            background: #f0f2f5; 
-        }
-        
-        .tabs-header { 
-            height: 50px; background: #fff; border-bottom: 1px solid #ddd; display: flex; flex-shrink: 0; z-index: 5; 
-        }
+        .right-panel { width: 50%; height: 100%; display: flex; flex-direction: column; background: #f0f2f5; }
+        .tabs-header { height: 50px; background: #fff; border-bottom: 1px solid #ddd; display: flex; flex-shrink: 0; z-index: 5; }
         .tab-btn { flex: 1; border: none; background: transparent; cursor: pointer; font-weight: 600; color: #5f6368; font-size: 14px; border-bottom: 3px solid transparent; }
         .tab-btn.active { color: #1a73e8; border-bottom: 3px solid #1a73e8; background: #e8f0fe; }
         
-        #status-bar { padding: 8px; background: #fff9c4; color: #f57f17; text-align: center; font-weight: bold; font-size: 12px; border-bottom: 1px solid #fff176; display: none; flex-shrink: 0; }
-
-        /* ÁREA DE CONTENIDO: Flexible pero contenida */
-        .content-area { 
-            flex: 1; 
-            overflow: hidden; /* IMPORTANTE: El scroll lo manejan los hijos */
-            position: relative; 
-            display: flex;
-            flex-direction: column;
-        }
-        
-        /* Pestaña: Ocupa todo el espacio y maneja su propio scroll */
+        .content-area { flex: 1; overflow: hidden; position: relative; display: flex; flex-direction: column; }
         .tab-content { display: none; width: 100%; height: 100%; overflow-y: auto; }
         .tab-content.active { display: block; }
+
+        /* STATUS BAR */
+        #status-bar { padding: 10px; background: #fff9c4; color: #f57f17; text-align: center; font-weight: bold; font-size: 13px; border-bottom: 1px solid #fff176; display: none; flex-shrink: 0; }
 
         /* --- MARKDOWN --- */
         .markdown-wrapper { padding: 40px; max-width: 900px; margin: auto; background: white; min-height: 100%; }
@@ -119,29 +91,35 @@ html_template = """
         .btn-primary { background: #0d47a1; color: white; margin-left: auto; display: none; }
         .btn-pdf { background: #c5221f; color: white; text-decoration: none; padding: 8px 16px; border-radius: 4px; font-size: 13px; display: none; }
 
-        /* --- CHAT FIX (Layout Vertical Estricto) --- */
-        #tab-chat { display: none; height: 100%; display: flex; flex-direction: column; overflow: hidden; }
+        /* --- CHAT ARRIBA (TOP INPUT) --- */
+        #tab-chat { display: none; width: 100%; height: 100%; flex-direction: column; }
         .chat-layout { display: flex; flex-direction: column; height: 100%; }
         
-        #chat-history { 
-            flex: 1; /* Ocupa todo el espacio disponible */
-            overflow-y: auto; /* Scroll solo aquí */
-            padding: 20px; 
-            background: #fff;
-        }
-        
+        /* Input Box AHORA ARRIBA */
         .chat-input-box { 
-            height: 70px; /* Altura fija */
-            padding: 15px; 
-            border-top: 1px solid #eee; 
-            display: flex; gap: 10px; 
-            background: #f8f9fa; 
-            flex-shrink: 0; /* No encoger */
+            height: 80px; 
+            padding: 20px; 
+            background: #fff; 
+            border-bottom: 1px solid #eee; /* Borde abajo en vez de arriba */
+            display: flex; gap: 15px; 
+            flex-shrink: 0;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05); /* Sombra suave */
+            z-index: 10;
         }
         
-        .msg { padding: 12px 16px; border-radius: 12px; margin-bottom: 12px; font-size: 14px; max-width: 85%; }
-        .msg.user { background: #e3f2fd; color: #1565c0; align-self: flex-end; }
-        .msg.ai { background: #f1f1f1; border: 1px solid #eee; align-self: flex-start; }
+        #chat-history { 
+            flex: 1; 
+            overflow-y: auto; 
+            padding: 30px; 
+            background: #f8f9fa;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        
+        .msg { padding: 15px 20px; border-radius: 12px; font-size: 15px; line-height: 1.6; max-width: 85%; }
+        .msg.user { background: #e3f2fd; color: #1565c0; align-self: flex-end; border-bottom-right-radius: 4px; box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
+        .msg.ai { background: #fff; border: 1px solid #e0e0e0; align-self: flex-start; border-bottom-left-radius: 4px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
     </style>
 </head>
 <body>
@@ -193,13 +171,12 @@ html_template = """
                 </div>
 
                 <div id="tab-chat" style="display:none; width:100%; height:100%; flex-direction:column;">
-                    <div class="chat-layout">
-                        <div id="chat-history"></div>
-                        <div class="chat-input-box">
-                            <input type="text" id="user-input" placeholder="Pregunta técnica..." style="flex:1; padding:10px; border:1px solid #ddd; border-radius:20px; outline:none;" onkeypress="if(event.key==='Enter') enviarMensaje()">
-                            <button onclick="enviarMensaje()" style="background:#1565c0; color:white; padding:8px 20px; border-radius:20px;">Enviar</button>
-                        </div>
+                    <div class="chat-input-box">
+                        <input type="text" id="user-input" placeholder="Escribe tu pregunta sobre la guía..." style="flex:1; padding:12px 20px; border:1px solid #ddd; border-radius:30px; outline:none; font-size:15px; background:#f9f9f9;" onkeypress="if(event.key==='Enter') enviarMensaje()">
+                        <button onclick="enviarMensaje()" style="background:#1565c0; color:white; padding:0 25px; border-radius:30px; border:none; font-weight:bold; cursor:pointer;">ENVIAR</button>
                     </div>
+                    <div id="chat-history">
+                        </div>
                 </div>
             </div>
         </div>
@@ -213,30 +190,32 @@ html_template = """
         mermaid.initialize({ startOnLoad: false, theme: 'neutral', securityLevel: 'loose' });
 
         function abrirPestana(id) {
-            // Ocultar todas
-            document.getElementById('tab-analisis').style.display = 'none';
-            document.getElementById('tab-infografia').style.display = 'none';
-            document.getElementById('tab-chat').style.display = 'none';
-            
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
             document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.getElementById(id).classList.add('active');
             
-            // Mostrar seleccionada (Chat requiere display flex, otras block)
+            // Lógica especial para el chat que es flex, no block
             const tab = document.getElementById(id);
-            if (id === 'tab-chat') {
-                tab.style.display = 'flex';
+            if(id === 'tab-chat') {
+                tab.style.display = 'flex'; // Importante para layout vertical
+                // Ocultar otros explícitamente
+                document.getElementById('tab-analisis').style.display = 'none';
+                document.getElementById('tab-infografia').style.display = 'none';
             } else {
                 tab.style.display = 'block';
+                document.getElementById('tab-chat').style.display = 'none';
+                if(id === 'tab-analisis') document.getElementById('tab-infografia').style.display = 'none';
+                else document.getElementById('tab-analisis').style.display = 'none';
             }
-            
-            // Botones
-            if(id.includes('analisis')) document.querySelectorAll('.tab-btn')[0].classList.add('active');
-            if(id.includes('infografia')) document.querySelectorAll('.tab-btn')[1].classList.add('active');
-            if(id.includes('chat')) document.querySelectorAll('.tab-btn')[2].classList.add('active');
 
             const btn = document.getElementById('btn-save-img');
             const hasContent = document.querySelector('.poster-title');
             if(id === 'tab-infografia' && hasContent) btn.style.display = 'block';
             else btn.style.display = 'none';
+
+            if(id.includes('analisis')) document.querySelectorAll('.tab-btn')[0].classList.add('active');
+            if(id.includes('infografia')) document.querySelectorAll('.tab-btn')[1].classList.add('active');
+            if(id.includes('chat')) document.querySelectorAll('.tab-btn')[2].classList.add('active');
         }
 
         const dropZone = document.getElementById('drop-zone');
@@ -249,7 +228,7 @@ html_template = """
             if(file && file.type === "application/pdf") {
                 dropZone.style.display = "none";
                 document.getElementById('pdf-container').style.display = "block"; 
-                document.getElementById('analisis-content').innerHTML = "<div style='text-align:center; margin-top:50px;'>🧠 <b>Esperando turno...</b></div>";
+                document.getElementById('analisis-content').innerHTML = "<div style='text-align:center; margin-top:50px;'>🧠 <b>Esperando turno de procesamiento...</b></div>";
                 document.getElementById('infografia-visual-container').innerHTML = "<div style='padding:80px; text-align:center; color:#999;'>🎨 <b>Esperando turno...</b></div>";
                 const fileURL = URL.createObjectURL(file);
                 document.getElementById('btn-download').href = fileURL;
@@ -277,29 +256,32 @@ html_template = """
         }
         function ajustarZoom(d) { if(pdfDoc) { scale = Math.max(0.2, scale + d); renderizarTodo(); } }
 
-        // --- SECUENCIA ---
+        // --- SECUENCIA SEGURA (8 SEGUNDOS DE ESPERA) ---
         async function iniciarSecuenciaBlindada() {
             const sb = document.getElementById('status-bar');
             sb.style.display = 'block';
             
-            sb.innerText = "🧠 Paso 1/3: Analizando Documento...";
+            sb.innerText = "🧠 Paso 1/3: Analizando Documento (Prioridad Alta)...";
             await procesarAnalisisTexto();
             
-            // Wait 5s
-            for(let i=5; i>0; i--) {
-                sb.innerText = `⏳ Esperando ${i}s para evitar saturación...`;
+            // Pausa MUY LARGA para limpiar el buffer de tokens de Google
+            for(let i=8; i>0; i--) {
+                sb.innerText = `⏳ Sincronizando API para evitar errores (${i}s)...`;
                 await new Promise(r => setTimeout(r, 1000));
             }
 
-            sb.innerText = "🎨 Paso 2/3: Generando Infografía...";
+            sb.innerText = "🎨 Paso 2/3: Diseñando Infografía...";
             await procesarInfografiaVisual();
 
-            sb.innerText = "✅ Listo";
+            sb.innerText = "✅ Todo Listo";
             setTimeout(() => { sb.style.display = 'none'; }, 3000);
         }
 
         async function procesarAnalisisTexto() {
-            const prompt = `ERES UN MOTOR DE DATOS. PROHIBIDO SALUDAR. TÍTULO (#) DIRECTO. Analiza: 1.Definiciones 2.Algoritmo 3.Soporte 4.Semáforo 5.Poblaciones`;
+            const prompt = `
+            ERES UN MOTOR DE DATOS. PROHIBIDO SALUDAR. TÍTULO (#) DIRECTO.
+            Analiza la Guía: 1. Definiciones 2. Algoritmo Agudo 3. Soporte Vital 4. Semáforo Evidencia 5. Poblaciones.
+            `;
             const res = await llamarIA(prompt);
             if(res && !res.startsWith("Error")) document.getElementById('analisis-content').innerHTML = marked.parse(limpiarTexto(res));
         }
@@ -325,6 +307,7 @@ html_template = """
             </div>
             <div class="poster-footer"><h3>TAKE HOME</h3><div class="footer-list"><div class="footer-item">M1</div></div></div>
             `;
+            
             const html = await llamarIA(promptPoster);
             if(html && !html.startsWith("Error")) {
                 document.getElementById('infografia-visual-container').innerHTML = limpiarTexto(html);
@@ -381,10 +364,18 @@ html_template = """
         async function enviarMensaje() {
             const i = document.getElementById('user-input'), h = document.getElementById('chat-history');
             const t = i.value; if(!t) return;
-            h.innerHTML += `<div class="msg user">${t}</div>`; i.value=""; h.scrollTop = h.scrollHeight;
+            
+            // Insertar mensaje usuario al final
+            h.innerHTML += `<div class="msg user">${t}</div>`; 
+            i.value=""; 
+            
+            // Auto scroll al fondo
+            h.scrollTop = h.scrollHeight;
+            
             const r = await llamarIA(`Respuesta técnica breve: ${t}`);
             const c = (!r.startsWith("Error")) ? marked.parse(limpiarTexto(r)) : `<span style="color:red">${r}</span>`;
-            h.innerHTML += `<div class="msg ai">${c}</div>`; h.scrollTop = h.scrollHeight;
+            h.innerHTML += `<div class="msg ai">${c}</div>`;
+            h.scrollTop = h.scrollHeight;
         }
 
         function descargarPoster() {
