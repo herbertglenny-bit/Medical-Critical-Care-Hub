@@ -2,12 +2,13 @@ import streamlit as st
 import streamlit.components.v1 as components
 import sqlite3
 import base64
+import json
 from datetime import datetime
 import google.generativeai as genai
 import time
 
 # Configuración
-st.set_page_config(page_title="Biblioteca Médica IA", layout="wide", initial_sidebar_state="expanded")
+st.set_page_config(page_title="Estación Médica NanoBanana", layout="wide", initial_sidebar_state="expanded")
 
 # --- SEGURIDAD ---
 try:
@@ -17,30 +18,39 @@ except (FileNotFoundError, KeyError):
     st.error("⚠️ Error: Falta 'GEMINI_API_KEY' en Secrets.")
     st.stop()
 
-# --- DIAGNÓSTICO AVANZADO V46 ---
-version_actual = genai.__version__
+# --- LÓGICA DE SELECCIÓN DE MODELOS (EL CEREBRO) ---
+def get_valid_models():
+    """
+    Obtiene la lista real de modelos disponibles para tu API Key
+    y los limpia para que funcionen tanto en Python como en JS.
+    """
+    try:
+        # 1. Pedimos la lista a Google
+        all_models = list(genai.list_models())
+        
+        # 2. Filtramos solo los que sirven para generar texto (generateContent)
+        valid_models = []
+        for m in all_models:
+            if 'generateContent' in m.supported_generation_methods:
+                # Guardamos el nombre completo (ej: models/gemini-2.5-flash)
+                valid_models.append(m.name)
+        
+        # 3. Ordenamos por preferencia (Flash > Pro > Otros) para velocidad
+        # Ponemos los 2.5 y Flash al principio
+        priority_models = sorted(valid_models, key=lambda x: ('flash' not in x, '2.5' not in x))
+        
+        if not priority_models:
+            return ["models/gemini-1.5-flash"] # Fallback de emergencia
+            
+        return priority_models
+        
+    except Exception:
+        return ["models/gemini-1.5-flash"] # Fallback si falla la conexión
 
-# Buscamos qué modelos permite tu llave realmente
-try:
-    mis_modelos = []
-    for m in genai.list_models():
-        if 'generateContent' in m.supported_generation_methods:
-            mis_modelos.append(m.name)
-except Exception as e:
-    mis_modelos = [f"Error al listar: {str(e)}"]
-
-with st.sidebar:
-    st.divider()
-    st.subheader("🕵️‍♂️ DIAGNÓSTICO V46")
-    st.write(f"**Librería:** {version_actual}")
-    
-    st.write("**Modelos Disponibles para tu API Key:**")
-    if mis_modelos:
-        for mod in mis_modelos:
-            st.code(mod, language="text")
-    else:
-        st.error("Tu API Key no devuelve ningún modelo. Puede estar caducada o sin permisos.")
-    st.divider()
+# Obtenemos los modelos reales al inicio
+REAL_MODELS_PYTHON = get_valid_models()
+# Preparamos la lista para JS (quitando el prefijo 'models/')
+REAL_MODELS_JS = [m.replace("models/", "") for m in REAL_MODELS_PYTHON]
 
 # --- BASE DE DATOS ---
 def init_db():
@@ -83,13 +93,13 @@ def borrar_guia(id_guia):
 
 init_db()
 
-# --- HTML TEMPLATE ---
+# --- HTML TEMPLATE (V47) ---
 html_template = """
 <!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Estación Médica V46</title>
+    <title>NanoBanana Viewer</title>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -110,18 +120,23 @@ html_template = """
         .content-area { flex: 1; overflow: hidden; position: relative; display: flex; flex-direction: column; }
         .tab-content { display: none; width: 100%; height: 100%; overflow-y: auto; }
         .tab-content.active { display: block; }
+        
+        /* ESTILOS ESPECÍFICOS NANOBANANA */
         .markdown-wrapper { padding: 40px; max-width: 900px; margin: auto; background: white; min-height: 100%; }
         .markdown-body { font-size: 16px; line-height: 1.7; color: #2c3e50; padding-bottom: 50px; }
-        .markdown-body h1 { color: #1565c0; border-bottom: 2px solid #eee; margin-top: 0; }
-        .markdown-body h2 { color: #2c3e50; margin-top: 30px; border-left: 4px solid #1565c0; padding-left: 10px; }
+        .markdown-body h1 { color: #f9a825; border-bottom: 2px solid #fff176; margin-top: 0; } /* Amarillo Banana */
+        .markdown-body h2 { color: #2c3e50; margin-top: 30px; border-left: 4px solid #f9a825; padding-left: 10px; }
+        
         #infografia-wrapper { padding: 50px; text-align: center; min-height: 100%; background: #dce1e6; }
         #infografia-visual-container { width: 900px; margin: 0 auto; background: white; box-shadow: 0 15px 50px rgba(0,0,0,0.2); font-family: 'Roboto', sans-serif; color: #333; text-align: left; overflow: visible; display: inline-block; }
-        .poster-header { background: #003c8f; color: white; padding: 50px; position: relative; }
-        .poster-header:after { content: ""; display: block; width: 100%; height: 10px; background: #ffca28; position: absolute; bottom: 0; left: 0; }
+        
+        /* PÓSTER */
+        .poster-header { background: #1a237e; color: white; padding: 50px; position: relative; }
+        .poster-header:after { content: ""; display: block; width: 100%; height: 10px; background: #ffeb3b; position: absolute; bottom: 0; left: 0; }
         .poster-title { font-size: 38px; font-weight: 900; margin: 0; line-height: 1.1; text-transform: uppercase; letter-spacing: -0.5px; }
         .poster-meta { margin-top: 15px; font-size: 13px; font-weight: 300; opacity: 0.9; display: flex; gap: 20px; text-transform: uppercase; letter-spacing: 1px; }
         .poster-body { padding: 50px; display: flex; flex-direction: column; gap: 40px; }
-        .section-title { font-size: 18px; font-weight: 900; color: #555; text-transform: uppercase; border-left: 5px solid #003c8f; padding-left: 10px; margin-bottom: 20px; }
+        .section-title { font-size: 18px; font-weight: 900; color: #555; text-transform: uppercase; border-left: 5px solid #1a237e; padding-left: 10px; margin-bottom: 20px; }
         .traffic-container { display: flex; gap: 20px; align-items: stretch; }
         .traffic-col { flex: 1; padding: 25px; border-radius: 8px; position: relative; }
         .tc-stop { background: #fce8e6; border: 1px solid #fad2cf; } .tc-stop .traffic-title { color: #c5221f; }
@@ -132,23 +147,24 @@ html_template = """
         .traffic-col ul { padding-left: 15px; margin: 0; }
         .traffic-col li { margin-bottom: 8px; font-size: 14px; line-height: 1.4; color: #444; }
         .metrics-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
-        .metric-card { background: #003c8f; color: white; padding: 25px; border-radius: 8px; text-align: center; }
+        .metric-card { background: #1a237e; color: white; padding: 25px; border-radius: 8px; text-align: center; }
         .metric-val { display: block; font-size: 36px; font-weight: 900; margin-bottom: 5px; }
         .metric-lbl { font-size: 12px; text-transform: uppercase; letter-spacing: 1px; opacity: 0.8; font-weight: 600; }
         .poster-mermaid { background: #f8f9fa; padding: 30px; border-radius: 8px; border: 1px solid #eee; text-align: center; }
         .poster-footer { background: #202124; color: white; padding: 40px 50px; text-align: center; }
         .footer-list { display: flex; flex-wrap: wrap; justify-content: center; gap: 15px; }
         .footer-item { background: rgba(255,255,255,0.15); padding: 10px 20px; border-radius: 30px; font-size: 14px; font-weight: 500; }
+        
         button { cursor: pointer; padding: 8px 16px; border-radius: 4px; border: none; font-weight: 600; font-size: 13px; box-shadow: 0 1px 3px rgba(0,0,0,0.2); }
         .btn-control { background: #fff; color: #333; }
-        .btn-primary { background: #0d47a1; color: white; margin-left: auto; display: none; }
+        .btn-primary { background: #1565c0; color: white; margin-left: auto; display: none; }
         .btn-pdf { background: #c5221f; color: white; text-decoration: none; padding: 8px 16px; border-radius: 4px; font-size: 13px; display: none; }
+        
         #tab-chat { display: none; width: 100%; height: 100%; flex-direction: column; }
-        .chat-layout { display: flex; flex-direction: column; height: 100%; }
         .chat-input-box { height: 80px; padding: 20px; background: #fff; border-bottom: 1px solid #eee; display: flex; gap: 15px; flex-shrink: 0; box-shadow: 0 4px 6px rgba(0,0,0,0.05); z-index: 10; }
         #chat-history { flex: 1; overflow-y: auto; padding: 30px; background: #f8f9fa; display: flex; flex-direction: column; gap: 20px; }
         .msg { padding: 15px 20px; border-radius: 12px; font-size: 15px; line-height: 1.6; max-width: 85%; }
-        .msg.user { background: #e3f2fd; color: #1565c0; align-self: flex-end; }
+        .msg.user { background: #fff9c4; color: #f57f17; align-self: flex-end; border: 1px solid #fff176; } /* Usuario Banana Style */
         .msg.ai { background: #fff; border: 1px solid #e0e0e0; align-self: flex-start; }
     </style>
 </head>
@@ -165,7 +181,7 @@ html_template = """
         <div class="right-panel">
             <div class="tabs-header">
                 <button class="tab-btn active" onclick="abrirPestana('tab-analisis')">📝 Análisis</button>
-                <button class="tab-btn" onclick="abrirPestana('tab-infografia')">🎨 Infografía Visual</button>
+                <button class="tab-btn" onclick="abrirPestana('tab-infografia')">🎨 NanoBanana Póster</button>
                 <button class="tab-btn" onclick="abrirPestana('tab-chat')">💬 Chat</button>
                 <button id="btn-save-img" class="btn-primary" onclick="descargarPoster()">📸 Descargar Imagen</button>
             </div>
@@ -174,7 +190,7 @@ html_template = """
                 <div id="tab-infografia" class="tab-content"><div id="infografia-wrapper"><div id="infografia-visual-container"></div></div></div>
                 <div id="tab-chat" class="tab-content">
                     <div class="chat-input-box">
-                        <input type="text" id="user-input" placeholder="Escribe tu pregunta..." style="flex:1; padding:12px 20px; border:1px solid #ddd; border-radius:30px; outline:none; font-size:15px; background:#f9f9f9;" onkeypress="if(event.key==='Enter') enviarMensaje()">
+                        <input type="text" id="user-input" placeholder="Pregunta sobre la guía..." style="flex:1; padding:12px 20px; border:1px solid #ddd; border-radius:30px; outline:none; font-size:15px; background:#f9f9f9;" onkeypress="if(event.key==='Enter') enviarMensaje()">
                         <button onclick="enviarMensaje()" style="background:#1565c0; color:white; padding:0 25px; border-radius:30px; border:none; font-weight:bold; cursor:pointer;">ENVIAR</button>
                     </div>
                     <div id="chat-history"></div>
@@ -184,7 +200,10 @@ html_template = """
     </div>
     <script>
         const API_KEY = "__API_KEY__"; 
-        const MODELS = __MODELS_JSON__; // Inyectamos la lista real desde Python
+        
+        // --- AQUÍ ESTÁ LA MAGIA: Modelos inyectados desde Python ---
+        const MODELS = __MODELS_JSON__; 
+        
         let pdfDoc = null, scale = 1.0, rotation = 0, globalPdfBase64 = null;
         mermaid.initialize({ startOnLoad: false, theme: 'neutral', securityLevel: 'loose' });
         const DATA_PDF = "__PDF_DATA__"; 
@@ -251,7 +270,10 @@ html_template = """
             
             async function tryFetch(prompt, attempts = 0) {
                 if (attempts >= MODELS.length) throw new Error("Todos los modelos fallaron.");
+                // Usamos la lista REAL que viene de Python
                 const currentModel = MODELS[attempts];
+                console.log("Intentando con modelo: " + currentModel);
+                
                 try {
                     const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${currentModel}:generateContent?key=${API_KEY}`, {
                         method: 'POST', headers: {'Content-Type': 'application/json'},
@@ -262,6 +284,7 @@ html_template = """
                     if(d.error) throw new Error(d.error.message);
                     return d.candidates[0].content.parts[0].text;
                 } catch(e) {
+                    console.warn(e);
                     return await tryFetch(prompt, attempts + 1);
                 }
             }
@@ -270,14 +293,14 @@ html_template = """
                 const text = await tryFetch(t);
                 document.getElementById(loadingId).remove();
                 h.innerHTML += `<div class="msg ai">${marked.parse(text)}</div>`;
-            } catch(e) { document.getElementById(loadingId).innerHTML = "Error de red/IA."; }
+            } catch(e) { document.getElementById(loadingId).innerHTML = "Error de red/IA: " + e.message; }
             h.scrollTop = h.scrollHeight;
         }
 
         function descargarPoster() {
             const el = document.getElementById('infografia-visual-container');
             html2canvas(el, { scale: 3, windowWidth: el.scrollWidth, windowHeight: el.scrollHeight, backgroundColor: "#ffffff" }).then(canvas => {
-                const a = document.createElement('a'); a.download = 'Infografia_Medica.png'; a.href = canvas.toDataURL('image/png'); a.click();
+                const a = document.createElement('a'); a.download = 'Infografia_NanoBanana.png'; a.href = canvas.toDataURL('image/png'); a.click();
             });
         }
     </script>
@@ -287,7 +310,11 @@ html_template = """
 
 # --- SIDEBAR ---
 with st.sidebar:
-    st.header("🏥 Biblioteca")
+    st.header("🏥 Biblioteca NanoBanana")
+    
+    # Mostramos qué modelo se ha elegido como "Campeón"
+    st.caption(f"🤖 Modelo Activo: {REAL_MODELS_PYTHON[0].replace('models/', '')}")
+    
     modo_admin = st.checkbox("Modo Administrador")
     st.divider()
     guias = obtener_guias()
@@ -307,44 +334,32 @@ if modo_admin:
     st.title("⚙️ Administrador: Cargar Nueva Guía")
     uploaded_file = st.file_uploader("Subir PDF", type="pdf")
     
-    if uploaded_file and st.button("🚀 Procesar con IA"):
-        with st.spinner("Procesando... esto puede tardar unos segundos..."):
-            genai.configure(api_key=API_KEY)
+    if uploaded_file and st.button("🚀 Procesar con NanoBanana AI"):
+        with st.spinner("Procesando..."):
             pdf_bytes = uploaded_file.read()
             
-            # --- FUNCIÓN DE SEGURIDAD V46: Usar SOLO lo que Google nos diga ---
-            def try_generate_auto(prompt_text, file_bytes):
-                # 1. Obtenemos lista real
-                try:
-                    real_models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
-                except:
-                    real_models = ["models/gemini-1.5-flash", "models/gemini-pro"] # Fallback
-
-                last_error = ""
-                # 2. Probamos en orden de lista real
-                for m_name in real_models:
+            # --- FUNCIÓN SEGURA V47 ---
+            def try_generate_dynamic(prompt_text, file_bytes):
+                # Usamos la lista de modelos que SABEMOS que funcionan
+                for m_name in REAL_MODELS_PYTHON:
                     try:
                         model = genai.GenerativeModel(m_name)
                         response = model.generate_content([{'mime_type': 'application/pdf', 'data': file_bytes}, prompt_text])
-                        return response.text, m_name
+                        return response.text
                     except Exception as e:
-                        last_error = str(e)
                         time.sleep(1)
                         continue
-                raise Exception(f"Ningún modelo funcionó. Error final: {last_error}")
+                raise Exception("Fallo total. Ningún modelo disponible respondió.")
             
             try:
-                analisis_txt, used_model = try_generate_auto("ERES UN MOTOR DE DATOS. EMPIEZA DIRECTO CON EL TÍTULO (#). Analiza: 1.Definiciones 2.Algoritmo 3.Soporte 4.Semáforo 5.Poblaciones.", pdf_bytes)
-                st.info(f"Análisis completado con: {used_model}")
+                analisis_txt = try_generate_dynamic("ERES UN MOTOR DE DATOS. EMPIEZA DIRECTO CON EL TÍTULO (#). Analiza: 1.Definiciones 2.Algoritmo 3.Soporte 4.Semáforo 5.Poblaciones.", pdf_bytes)
                 
-                info_html, _ = try_generate_auto("""Genera SOLO HTML para PÓSTER MÉDICO (Diseño V31). 
+                info_html = try_generate_dynamic("""Genera SOLO HTML para PÓSTER MÉDICO (Diseño V31). 
                 <div class="poster-header"><h1 class="poster-title">TITULO</h1><div class="poster-meta">META</div></div>
                 <div class="poster-body">...contenido estructurado...<div id="mermaid-placeholder" class="poster-mermaid"></div></div>
-                <div class="poster-footer">...</div>""", pdf_bytes)
-                info_html = info_html.replace("```html", "").replace("```", "")
+                <div class="poster-footer">...</div>""", pdf_bytes).replace("```html", "").replace("```", "")
                 
-                mermaid_code, _ = try_generate_auto("Crea 'mermaid graph TD' SIMPLE. Solo código.", pdf_bytes)
-                mermaid_code = mermaid_code.replace("```mermaid", "").replace("```", "")
+                mermaid_code = try_generate_dynamic("Crea 'mermaid graph TD' SIMPLE. Solo código.", pdf_bytes).replace("```mermaid", "").replace("```", "")
                 
                 st.session_state['temp_upload'] = {
                     'titulo': uploaded_file.name,
@@ -353,7 +368,7 @@ if modo_admin:
                     'html': info_html,
                     'mermaid': mermaid_code
                 }
-                st.success("Procesado con éxito.")
+                st.success("¡Procesado!")
                 
             except Exception as e:
                 st.error(f"Error IA: {str(e)}")
@@ -376,15 +391,9 @@ else:
             g_html = guia[5].replace("`", "\`")
             g_mermaid = guia[6].replace("`", "\`")
             
-            # V46: Pasamos la lista de modelos disponibles al JS
-            import json
-            try:
-                real_models_js = [m.name.replace("models/", "") for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
-            except:
-                real_models_js = ["gemini-1.5-flash", "gemini-pro"]
-            
             final_html = html_template.replace("__API_KEY__", API_KEY)
-            final_html = final_html.replace("__MODELS_JSON__", json.dumps(real_models_js))
+            # Inyectamos la lista REAL para que el chat JS funcione
+            final_html = final_html.replace("__MODELS_JSON__", json.dumps(REAL_MODELS_JS))
             final_html = final_html.replace("__PDF_DATA__", g_pdf_b64)
             final_html = final_html.replace("__ANALISIS_DATA__", g_analisis)
             final_html = final_html.replace("__INFO_DATA__", g_html)
@@ -392,5 +401,5 @@ else:
             
             components.html(final_html, height=1000, scrolling=False)
     else:
-        st.title("Bienvenido")
+        st.title("Bienvenido a NanoBanana Medical")
         st.info("👈 Selecciona una guía.")
