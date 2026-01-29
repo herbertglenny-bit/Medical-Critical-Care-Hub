@@ -1,8 +1,11 @@
 import streamlit as st
 import streamlit.components.v1 as components
+import sqlite3
+import base64
+from datetime import datetime
 
 # Configuración: Layout Wide
-st.set_page_config(page_title="Estación Médica IA", layout="wide", initial_sidebar_state="collapsed")
+st.set_page_config(page_title="Biblioteca Médica IA", layout="wide", initial_sidebar_state="expanded")
 
 # --- SEGURIDAD ---
 try:
@@ -10,14 +13,67 @@ try:
 except (FileNotFoundError, KeyError):
     st.error("⚠️ Error: Falta 'GEMINI_API_KEY' en Secrets.")
     st.stop()
-# -----------------
 
+# --- GESTIÓN DE BASE DE DATOS ---
+def init_db():
+    conn = sqlite3.connect('guias_medicas.db')
+    c = conn.cursor()
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS guias (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            titulo TEXT,
+            fecha TEXT,
+            pdf_blob BLOB,
+            analisis_md TEXT,
+            infografia_html TEXT,
+            mermaid_code TEXT
+        )
+    ''')
+    conn.commit()
+    conn.close()
+
+def guardar_guia(titulo, pdf_bytes, analisis, info_html, mermaid):
+    conn = sqlite3.connect('guias_medicas.db')
+    c = conn.cursor()
+    fecha = datetime.now().strftime("%Y-%m-%d %H:%M")
+    c.execute('INSERT INTO guias (titulo, fecha, pdf_blob, analisis_md, infografia_html, mermaid_code) VALUES (?, ?, ?, ?, ?, ?)',
+              (titulo, fecha, pdf_bytes, analisis, info_html, mermaid))
+    conn.commit()
+    conn.close()
+
+def obtener_guias():
+    conn = sqlite3.connect('guias_medicas.db')
+    c = conn.cursor()
+    c.execute('SELECT id, titulo, fecha FROM guias ORDER BY id DESC')
+    data = c.fetchall()
+    conn.close()
+    return data
+
+def obtener_guia_por_id(id_guia):
+    conn = sqlite3.connect('guias_medicas.db')
+    c = conn.cursor()
+    c.execute('SELECT * FROM guias WHERE id = ?', (id_guia,))
+    data = c.fetchone()
+    conn.close()
+    return data
+
+def borrar_guia(id_guia):
+    conn = sqlite3.connect('guias_medicas.db')
+    c = conn.cursor()
+    c.execute('DELETE FROM guias WHERE id = ?', (id_guia,))
+    conn.commit()
+    conn.close()
+
+# Inicializar DB al arranque
+init_db()
+
+# --- INTERFAZ HTML/JS (El motor visual) ---
 html_template = """
 <!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Estación Médica V40 (Input Top)</title>
+    <title>Estación Médica V41</title>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -25,21 +81,18 @@ html_template = """
     <script>
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
     </script>
-    
     <style>
-        /* --- GLOBAL --- */
+        /* CSS V40 Integrado */
         * { box-sizing: border-box; }
         body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; font-family: 'Segoe UI', Roboto, sans-serif; background: #202124; }
         .main-container { display: flex; width: 100vw; height: 100vh; }
         
-        /* --- IZQUIERDA: VISOR PDF --- */
-        .pdf-section { width: 50%; height: 100%; display: flex; flex-direction: column; border-right: 1px solid #444; background: #525659; }
+        .pdf-section { width: 50%; min-width: 50%; height: 100%; display: flex; flex-direction: column; border-right: 1px solid #444; background: #525659; }
         .pdf-toolbar { height: 50px; background: #323639; display: flex; align-items: center; justify-content: center; gap: 15px; box-shadow: 0 2px 5px rgba(0,0,0,0.2); z-index: 10; flex-shrink: 0; }
         .pdf-scroll-container { flex: 1; overflow: auto; padding: 40px; background: #525659; text-align: center; display: block; }
         .pdf-page-canvas { display: inline-block; box-shadow: 0 4px 15px rgba(0,0,0,0.6); margin-bottom: 20px; vertical-align: top; background: white; }
 
-        /* --- DERECHA: PANELES IA --- */
-        .right-panel { width: 50%; height: 100%; display: flex; flex-direction: column; background: #f0f2f5; }
+        .right-panel { width: 50%; min-width: 50%; height: 100%; display: flex; flex-direction: column; background: #f0f2f5; }
         .tabs-header { height: 50px; background: #fff; border-bottom: 1px solid #ddd; display: flex; flex-shrink: 0; z-index: 5; }
         .tab-btn { flex: 1; border: none; background: transparent; cursor: pointer; font-weight: 600; color: #5f6368; font-size: 14px; border-bottom: 3px solid transparent; }
         .tab-btn.active { color: #1a73e8; border-bottom: 3px solid #1a73e8; background: #e8f0fe; }
@@ -48,19 +101,16 @@ html_template = """
         .tab-content { display: none; width: 100%; height: 100%; overflow-y: auto; }
         .tab-content.active { display: block; }
 
-        /* STATUS BAR */
-        #status-bar { padding: 10px; background: #fff9c4; color: #f57f17; text-align: center; font-weight: bold; font-size: 13px; border-bottom: 1px solid #fff176; display: none; flex-shrink: 0; }
-
-        /* --- MARKDOWN --- */
+        /* MARKDOWN & INFOGRAFÍA ESTILOS (V31/V40) */
         .markdown-wrapper { padding: 40px; max-width: 900px; margin: auto; background: white; min-height: 100%; }
         .markdown-body { font-size: 16px; line-height: 1.7; color: #2c3e50; padding-bottom: 50px; }
         .markdown-body h1 { color: #1565c0; border-bottom: 2px solid #eee; margin-top: 0; }
+        .markdown-body h2 { color: #2c3e50; margin-top: 30px; border-left: 4px solid #1565c0; padding-left: 10px; }
 
-        /* --- INFOGRAFÍA --- */
         #infografia-wrapper { padding: 50px; text-align: center; min-height: 100%; background: #dce1e6; }
         #infografia-visual-container { width: 900px; margin: 0 auto; background: white; box-shadow: 0 15px 50px rgba(0,0,0,0.2); font-family: 'Roboto', sans-serif; color: #333; text-align: left; overflow: visible; display: inline-block; }
-
-        /* Estilos Póster */
+        
+        /* ESTILOS PÓSTER */
         .poster-header { background: #003c8f; color: white; padding: 50px; position: relative; }
         .poster-header:after { content: ""; display: block; width: 100%; height: 10px; background: #ffca28; position: absolute; bottom: 0; left: 0; }
         .poster-title { font-size: 38px; font-weight: 900; margin: 0; line-height: 1.1; text-transform: uppercase; letter-spacing: -0.5px; }
@@ -91,54 +141,25 @@ html_template = """
         .btn-primary { background: #0d47a1; color: white; margin-left: auto; display: none; }
         .btn-pdf { background: #c5221f; color: white; text-decoration: none; padding: 8px 16px; border-radius: 4px; font-size: 13px; display: none; }
 
-        /* --- CHAT ARRIBA (TOP INPUT) --- */
+        /* CHAT */
         #tab-chat { display: none; width: 100%; height: 100%; flex-direction: column; }
         .chat-layout { display: flex; flex-direction: column; height: 100%; }
-        
-        /* Input Box AHORA ARRIBA */
-        .chat-input-box { 
-            height: 80px; 
-            padding: 20px; 
-            background: #fff; 
-            border-bottom: 1px solid #eee; /* Borde abajo en vez de arriba */
-            display: flex; gap: 15px; 
-            flex-shrink: 0;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.05); /* Sombra suave */
-            z-index: 10;
-        }
-        
-        #chat-history { 
-            flex: 1; 
-            overflow-y: auto; 
-            padding: 30px; 
-            background: #f8f9fa;
-            display: flex;
-            flex-direction: column;
-            gap: 20px;
-        }
-        
+        .chat-input-box { height: 80px; padding: 20px; background: #fff; border-bottom: 1px solid #eee; display: flex; gap: 15px; flex-shrink: 0; box-shadow: 0 4px 6px rgba(0,0,0,0.05); z-index: 10; }
+        #chat-history { flex: 1; overflow-y: auto; padding: 30px; background: #f8f9fa; display: flex; flex-direction: column; gap: 20px; }
         .msg { padding: 15px 20px; border-radius: 12px; font-size: 15px; line-height: 1.6; max-width: 85%; }
-        .msg.user { background: #e3f2fd; color: #1565c0; align-self: flex-end; border-bottom-right-radius: 4px; box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
-        .msg.ai { background: #fff; border: 1px solid #e0e0e0; align-self: flex-start; border-bottom-left-radius: 4px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+        .msg.user { background: #e3f2fd; color: #1565c0; align-self: flex-end; }
+        .msg.ai { background: #fff; border: 1px solid #e0e0e0; align-self: flex-start; }
     </style>
 </head>
 <body>
-
     <div class="main-container">
         <div class="pdf-section">
             <div class="pdf-toolbar">
                 <button class="btn-control" onclick="ajustarZoom(-0.2)">➖</button>
                 <span id="zoom-level" style="color:white; font-size:12px; margin:0 10px;">100%</span>
                 <button class="btn-control" onclick="ajustarZoom(0.2)">➕</button>
-                <a id="btn-download" class="btn-pdf">⬇️ PDF</a>
             </div>
-            
-            <div id="drop-zone" style="flex:1; display:flex; flex-direction:column; justify-content:center; align-items:center; color:#ccc; cursor:pointer;">
-                <div style="font-size:50px; margin-bottom:15px;">📁</div>
-                <div style="font-weight:bold; font-size:18px;">ARRASTRA TU GUÍA CLÍNICA AQUÍ</div>
-                <div style="font-size:13px; margin-top:5px; opacity:0.7;">Análisis Técnico + Infografía PRO</div>
-            </div>
-            <div id="pdf-container" class="pdf-scroll-container" style="display:none;"></div>
+            <div id="pdf-container" class="pdf-scroll-container"></div>
         </div>
 
         <div class="right-panel">
@@ -149,98 +170,92 @@ html_template = """
                 <button id="btn-save-img" class="btn-primary" onclick="descargarPoster()">📸 Descargar Imagen</button>
             </div>
             
-            <div id="status-bar"></div>
-
             <div class="content-area">
                 <div id="tab-analisis" class="tab-content active">
                     <div class="markdown-wrapper">
-                        <div id="analisis-content" class="markdown-body">
-                            <div style="text-align:center; margin-top:100px; color:#bbb;">Esperando documento...</div>
-                        </div>
+                        <div id="analisis-content" class="markdown-body"></div>
                     </div>
                 </div>
-
                 <div id="tab-infografia" class="tab-content">
                     <div id="infografia-wrapper">
-                        <div id="infografia-visual-container">
-                            <div style="padding:100px; text-align:center; color:#bbb;">
-                                El póster se generará aquí automáticamente.
-                            </div>
-                        </div>
+                        <div id="infografia-visual-container"></div>
                     </div>
                 </div>
-
-                <div id="tab-chat" style="display:none; width:100%; height:100%; flex-direction:column;">
+                <div id="tab-chat" class="tab-content">
                     <div class="chat-input-box">
                         <input type="text" id="user-input" placeholder="Escribe tu pregunta sobre la guía..." style="flex:1; padding:12px 20px; border:1px solid #ddd; border-radius:30px; outline:none; font-size:15px; background:#f9f9f9;" onkeypress="if(event.key==='Enter') enviarMensaje()">
                         <button onclick="enviarMensaje()" style="background:#1565c0; color:white; padding:0 25px; border-radius:30px; border:none; font-weight:bold; cursor:pointer;">ENVIAR</button>
                     </div>
-                    <div id="chat-history">
-                        </div>
+                    <div id="chat-history"></div>
                 </div>
             </div>
         </div>
     </div>
 
     <script>
-        const API_KEY = "__API_KEY_PLACEHOLDER__"; 
-        const MODEL_CANDIDATES = ["gemini-1.5-flash", "gemini-2.0-flash-exp", "gemini-1.5-pro"];
-        let WORKING_MODEL = null;
+        const API_KEY = "__API_KEY__"; 
+        const MODEL = "gemini-1.5-flash";
         let pdfDoc = null, scale = 1.0, rotation = 0, globalPdfBase64 = null;
         mermaid.initialize({ startOnLoad: false, theme: 'neutral', securityLevel: 'loose' });
 
-        function abrirPestana(id) {
-            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-            document.getElementById(id).classList.add('active');
-            
-            // Lógica especial para el chat que es flex, no block
-            const tab = document.getElementById(id);
-            if(id === 'tab-chat') {
-                tab.style.display = 'flex'; // Importante para layout vertical
-                // Ocultar otros explícitamente
-                document.getElementById('tab-analisis').style.display = 'none';
-                document.getElementById('tab-infografia').style.display = 'none';
+        // --- DATOS INYECTADOS DESDE PYTHON ---
+        const DATA_PDF = "__PDF_DATA__"; 
+        const DATA_ANALISIS = `__ANALISIS_DATA__`;
+        const DATA_INFO = `__INFO_DATA__`;
+        const DATA_MERMAID = `__MERMAID_DATA__`;
+
+        // INICIO AUTOMÁTICO
+        window.onload = function() {
+            if(DATA_PDF && DATA_PDF !== "null") {
+                globalPdfBase64 = DATA_PDF;
+                cargarPDF(globalPdfBase64);
+                
+                // Cargar contenidos si existen
+                if(DATA_ANALISIS && DATA_ANALISIS !== "null") 
+                    document.getElementById('analisis-content').innerHTML = marked.parse(DATA_ANALISIS);
+                
+                if(DATA_INFO && DATA_INFO !== "null") {
+                    document.getElementById('infografia-visual-container').innerHTML = DATA_INFO;
+                    // Inyectar gráfico
+                    if(DATA_MERMAID && DATA_MERMAID !== "null") {
+                        setTimeout(() => {
+                            const target = document.getElementById('mermaid-placeholder');
+                            if(target) {
+                                target.innerHTML = `<div class="mermaid">${DATA_MERMAID}</div>`;
+                                mermaid.run();
+                            }
+                        }, 500);
+                        document.getElementById('btn-save-img').style.display = 'block';
+                    }
+                }
             } else {
-                tab.style.display = 'block';
-                document.getElementById('tab-chat').style.display = 'none';
-                if(id === 'tab-analisis') document.getElementById('tab-infografia').style.display = 'none';
-                else document.getElementById('tab-analisis').style.display = 'none';
+                document.getElementById('analisis-content').innerHTML = "<div style='text-align:center;margin-top:100px;color:#aaa;'>Selecciona una guía de la biblioteca.</div>";
             }
+        };
 
-            const btn = document.getElementById('btn-save-img');
-            const hasContent = document.querySelector('.poster-title');
-            if(id === 'tab-infografia' && hasContent) btn.style.display = 'block';
-            else btn.style.display = 'none';
-
+        function abrirPestana(id) {
+            document.querySelectorAll('.tab-content').forEach(el => el.style.display = 'none');
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            
+            const tab = document.getElementById(id);
+            tab.style.display = (id === 'tab-chat') ? 'flex' : 'block';
+            
             if(id.includes('analisis')) document.querySelectorAll('.tab-btn')[0].classList.add('active');
             if(id.includes('infografia')) document.querySelectorAll('.tab-btn')[1].classList.add('active');
             if(id.includes('chat')) document.querySelectorAll('.tab-btn')[2].classList.add('active');
+            
+            const btn = document.getElementById('btn-save-img');
+            const hasContent = document.querySelector('.poster-title');
+            btn.style.display = (id === 'tab-infografia' && hasContent) ? 'block' : 'none';
         }
 
-        const dropZone = document.getElementById('drop-zone');
-        dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.style.background = "#444"; });
-        dropZone.addEventListener('dragleave', () => { dropZone.style.background = "transparent"; });
-        
-        dropZone.addEventListener('drop', async (e) => {
-            e.preventDefault();
-            const file = e.dataTransfer.files[0];
-            if(file && file.type === "application/pdf") {
-                dropZone.style.display = "none";
-                document.getElementById('pdf-container').style.display = "block"; 
-                document.getElementById('analisis-content').innerHTML = "<div style='text-align:center; margin-top:50px;'>🧠 <b>Esperando turno de procesamiento...</b></div>";
-                document.getElementById('infografia-visual-container').innerHTML = "<div style='padding:80px; text-align:center; color:#999;'>🎨 <b>Esperando turno...</b></div>";
-                const fileURL = URL.createObjectURL(file);
-                document.getElementById('btn-download').href = fileURL;
-                document.getElementById('btn-download').style.display = 'inline-block';
-                cargarPDF(fileURL);
-                const reader = new FileReader();
-                reader.onload = async () => { globalPdfBase64 = reader.result.split(',')[1]; iniciarSecuenciaBlindada(); };
-                reader.readAsDataURL(file);
-            }
-        });
+        async function cargarPDF(base64data) {
+            const pdfData = atob(base64data);
+            const loadingTask = pdfjsLib.getDocument({data: pdfData});
+            pdfDoc = await loadingTask.promise;
+            renderizarTodo();
+        }
 
-        async function cargarPDF(url) { pdfDoc = await pdfjsLib.getDocument(url).promise; renderizarTodo(); }
         async function renderizarTodo() {
             const container = document.getElementById('pdf-container'); container.innerHTML = "";
             document.getElementById('zoom-level').innerText = Math.round(scale * 100) + "%";
@@ -256,132 +271,36 @@ html_template = """
         }
         function ajustarZoom(d) { if(pdfDoc) { scale = Math.max(0.2, scale + d); renderizarTodo(); } }
 
-        // --- SECUENCIA SEGURA (8 SEGUNDOS DE ESPERA) ---
-        async function iniciarSecuenciaBlindada() {
-            const sb = document.getElementById('status-bar');
-            sb.style.display = 'block';
-            
-            sb.innerText = "🧠 Paso 1/3: Analizando Documento (Prioridad Alta)...";
-            await procesarAnalisisTexto();
-            
-            // Pausa MUY LARGA para limpiar el buffer de tokens de Google
-            for(let i=8; i>0; i--) {
-                sb.innerText = `⏳ Sincronizando API para evitar errores (${i}s)...`;
-                await new Promise(r => setTimeout(r, 1000));
-            }
-
-            sb.innerText = "🎨 Paso 2/3: Diseñando Infografía...";
-            await procesarInfografiaVisual();
-
-            sb.innerText = "✅ Todo Listo";
-            setTimeout(() => { sb.style.display = 'none'; }, 3000);
-        }
-
-        async function procesarAnalisisTexto() {
-            const prompt = `
-            ERES UN MOTOR DE DATOS. PROHIBIDO SALUDAR. TÍTULO (#) DIRECTO.
-            Analiza la Guía: 1. Definiciones 2. Algoritmo Agudo 3. Soporte Vital 4. Semáforo Evidencia 5. Poblaciones.
-            `;
-            const res = await llamarIA(prompt);
-            if(res && !res.startsWith("Error")) document.getElementById('analisis-content').innerHTML = marked.parse(limpiarTexto(res));
-        }
-
-        async function procesarInfografiaVisual() {
-            const promptPoster = `
-            Genera HTML para PÓSTER MÉDICO (Diseño V31). SOLO HTML.
-            <div class="poster-header"><h1 class="poster-title">TITULO</h1><div class="poster-meta">META</div></div>
-            <div class="poster-body">
-                <div class="section-title">SEMÁFORO DE CAMBIOS</div>
-                <div class="traffic-container">
-                    <div class="traffic-col tc-stop"><span class="traffic-icon">⛔</span><div class="traffic-title">STOP</div><ul><li>...</li></ul></div>
-                    <div class="traffic-col tc-wait"><span class="traffic-icon">⚠️</span><div class="traffic-title">PRECAUCIÓN</div><ul><li>...</li></ul></div>
-                    <div class="traffic-col tc-go"><span class="traffic-icon">✅</span><div class="traffic-title">GO</div><ul><li>...</li></ul></div>
-                </div>
-                <div class="section-title">CIFRAS CLAVE</div>
-                <div class="metrics-grid">
-                    <div class="metric-card"><span class="metric-val">X</span><span class="metric-lbl">L1</span></div>
-                    <div class="metric-card"><span class="metric-val">Y</span><span class="metric-lbl">L2</span></div>
-                    <div class="metric-card"><span class="metric-val">Z</span><span class="metric-lbl">L3</span></div>
-                </div>
-                <div class="section-title">ALGORITMO</div><div id="mermaid-placeholder" class="poster-mermaid"></div>
-            </div>
-            <div class="poster-footer"><h3>TAKE HOME</h3><div class="footer-list"><div class="footer-item">M1</div></div></div>
-            `;
-            
-            const html = await llamarIA(promptPoster);
-            if(html && !html.startsWith("Error")) {
-                document.getElementById('infografia-visual-container').innerHTML = limpiarTexto(html);
-                await new Promise(r => setTimeout(r, 2000));
-                const target = document.getElementById('mermaid-placeholder');
-                if(target) {
-                    target.innerHTML = "Generando gráfico...";
-                    const mer = await llamarIA(`Crea 'mermaid graph TD' SIMPLE (max 8 nodos). TEXTOS ENTRE COMILLAS DOBLES. Solo código.`);
-                    if(mer && !mer.startsWith("Error")) {
-                        target.innerHTML = `<div class="mermaid">${limpiarMermaid(mer)}</div>`;
-                        try { mermaid.run(); } catch(e){}
-                    }
-                }
-                if(document.getElementById('tab-infografia').classList.contains('active') || document.getElementById('tab-infografia').style.display === 'block') {
-                    document.getElementById('btn-save-img').style.display = 'block';
-                }
-            }
-        }
-
-        async function llamarIA(p, attempt = 1) {
-            try {
-                if (WORKING_MODEL) return await fetchGemini(p, WORKING_MODEL);
-                for (let m of MODEL_CANDIDATES) {
-                    const r = await fetchGemini(p, m);
-                    if (r && !r.startsWith("Error")) { WORKING_MODEL = m; return r; }
-                }
-                throw new Error("Fail");
-            } catch (e) {
-                if (attempt <= 5) {
-                    await new Promise(r => setTimeout(r, 5000));
-                    return llamarIA(p, attempt + 1);
-                }
-                return "Error: Servicio saturado.";
-            }
-        }
-
-        async function fetchGemini(prompt, modelo) {
-            if(!globalPdfBase64) return null;
-            try {
-                const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent?key=${API_KEY}`, {
-                    method: 'POST', headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ contents: [{ parts: [{ text: prompt }, { inline_data: { mime_type: "application/pdf", data: globalPdfBase64 } }] }] })
-                });
-                if (r.status === 429) throw new Error("429");
-                const d = await r.json();
-                if(d.error) throw new Error(d.error.message);
-                return d.candidates[0].content.parts[0].text;
-            } catch(e) { throw e; }
-        }
-
-        function limpiarTexto(t) { return t.replace(/```html|```/gi, "").trim(); }
-        function limpiarMermaid(t) { let l = t.replace(/```mermaid|```/gi, ""); const i = l.indexOf("graph TD"); if(i !== -1) l = l.substring(i); return l.trim(); }
-
+        // --- CHATBOT ---
         async function enviarMensaje() {
-            const i = document.getElementById('user-input'), h = document.getElementById('chat-history');
+            const i = document.getElementById('user-input');
+            const h = document.getElementById('chat-history');
             const t = i.value; if(!t) return;
             
-            // Insertar mensaje usuario al final
-            h.innerHTML += `<div class="msg user">${t}</div>`; 
-            i.value=""; 
+            h.innerHTML += `<div class="msg user">${t}</div>`; i.value=""; h.scrollTop = h.scrollHeight;
+            const loadingId = "load"+Date.now();
+            h.innerHTML += `<div id="${loadingId}" class="msg ai" style="color:#888">...</div>`;
             
-            // Auto scroll al fondo
-            h.scrollTop = h.scrollHeight;
-            
-            const r = await llamarIA(`Respuesta técnica breve: ${t}`);
-            const c = (!r.startsWith("Error")) ? marked.parse(limpiarTexto(r)) : `<span style="color:red">${r}</span>`;
-            h.innerHTML += `<div class="msg ai">${c}</div>`;
+            try {
+                const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${API_KEY}`, {
+                    method: 'POST', headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ contents: [{ parts: [{ text: "Actúa como médico experto. Responde brevemente sobre la guía adjunta: " + t }, { inline_data: { mime_type: "application/pdf", data: globalPdfBase64 } }] }] })
+                });
+                const d = await r.json();
+                document.getElementById(loadingId).remove();
+                if(d.error) throw new Error(d.error.message);
+                const text = d.candidates[0].content.parts[0].text;
+                h.innerHTML += `<div class="msg ai">${marked.parse(text)}</div>`;
+            } catch(e) {
+                document.getElementById(loadingId).innerHTML = "Error de red.";
+            }
             h.scrollTop = h.scrollHeight;
         }
 
         function descargarPoster() {
             const el = document.getElementById('infografia-visual-container');
             html2canvas(el, { scale: 3, windowWidth: el.scrollWidth, windowHeight: el.scrollHeight, backgroundColor: "#ffffff" }).then(canvas => {
-                const a = document.createElement('a'); a.download = 'Infografia_Medica_Pro.png'; a.href = canvas.toDataURL('image/png'); a.click();
+                const a = document.createElement('a'); a.download = 'Infografia_Medica.png'; a.href = canvas.toDataURL('image/png'); a.click();
             });
         }
     </script>
@@ -389,5 +308,129 @@ html_template = """
 </html>
 """
 
-final_html = html_template.replace("__API_KEY_PLACEHOLDER__", API_KEY)
-components.html(final_html, height=1000, scrolling=True)
+# --- LÓGICA DE STREAMLIT ---
+
+# Sidebar para Navegación
+with st.sidebar:
+    st.header("🏥 Biblioteca")
+    modo_admin = st.checkbox("Modo Administrador")
+    
+    st.divider()
+    
+    # Lista de Guías
+    guias = obtener_guias()
+    if not guias:
+        st.info("No hay guías guardadas.")
+    
+    selected_guia_id = None
+    
+    # Mostrar botones de guías
+    for g_id, g_titulo, g_fecha in guias:
+        col1, col2 = st.columns([0.8, 0.2])
+        if col1.button(f"📄 {g_titulo}", key=f"btn_{g_id}", use_container_width=True):
+            st.session_state['active_guide_id'] = g_id
+            st.rerun()
+        
+        if modo_admin:
+            if col2.button("❌", key=f"del_{g_id}"):
+                borrar_guia(g_id)
+                st.rerun()
+
+# Lógica Principal
+if modo_admin:
+    st.title("⚙️ Panel de Carga de Guías")
+    
+    # 1. Subida
+    uploaded_file = st.file_uploader("Subir Guía (PDF)", type="pdf")
+    
+    if uploaded_file:
+        # Procesar solo si se pide
+        if st.button("🚀 Procesar con IA"):
+            with st.spinner("Analizando documento (puede tardar 30s)..."):
+                import google.generativeai as genai
+                import time
+                
+                genai.configure(api_key=API_KEY)
+                model = genai.GenerativeModel('gemini-1.5-flash')
+                
+                pdf_bytes = uploaded_file.read()
+                
+                # Paso 1: Análisis Texto
+                try:
+                    prompt_analisis = "ERES UN MOTOR DE DATOS. EMPIEZA DIRECTO CON EL TÍTULO (#). Analiza: 1.Definiciones 2.Algoritmo 3.Soporte 4.Semáforo 5.Poblaciones."
+                    res1 = model.generate_content([{'mime_type': 'application/pdf', 'data': pdf_bytes}, prompt_analisis])
+                    analisis_txt = res1.text
+                    
+                    time.sleep(3) # Pausa seguridad
+                    
+                    # Paso 2: HTML
+                    prompt_html = """Genera SOLO HTML para PÓSTER MÉDICO (Diseño V31). 
+                    <div class="poster-header"><h1 class="poster-title">TITULO</h1><div class="poster-meta">META</div></div>
+                    <div class="poster-body">...contenido estructurado...<div id="mermaid-placeholder" class="poster-mermaid"></div></div>
+                    <div class="poster-footer">...</div>"""
+                    res2 = model.generate_content([{'mime_type': 'application/pdf', 'data': pdf_bytes}, prompt_html])
+                    info_html = res2.text.replace("```html", "").replace("```", "")
+                    
+                    time.sleep(3) # Pausa seguridad
+                    
+                    # Paso 3: Mermaid
+                    res3 = model.generate_content([{'mime_type': 'application/pdf', 'data': pdf_bytes}, "Crea 'mermaid graph TD' SIMPLE. Solo código."])
+                    mermaid_code = res3.text.replace("```mermaid", "").replace("```", "")
+                    
+                    # Guardar en Session State temporalmente
+                    st.session_state['temp_upload'] = {
+                        'titulo': uploaded_file.name,
+                        'bytes': pdf_bytes,
+                        'analisis': analisis_txt,
+                        'html': info_html,
+                        'mermaid': mermaid_code
+                    }
+                    st.success("Procesamiento completado. Revisa y guarda.")
+                    
+                except Exception as e:
+                    st.error(f"Error IA: {str(e)}")
+
+        # Mostrar Botón Guardar si hay algo procesado
+        if 'temp_upload' in st.session_state:
+            with st.expander("Ver Vista Previa de Datos Extraídos"):
+                st.write(st.session_state['temp_upload']['analisis'][:500] + "...")
+            
+            titulo_final = st.text_input("Título para la Biblioteca", value=st.session_state['temp_upload']['titulo'])
+            
+            if st.button("💾 Guardar en Biblioteca"):
+                guardar_guia(
+                    titulo_final,
+                    st.session_state['temp_upload']['bytes'],
+                    st.session_state['temp_upload']['analisis'],
+                    st.session_state['temp_upload']['html'],
+                    st.session_state['temp_upload']['mermaid']
+                )
+                del st.session_state['temp_upload']
+                st.success("¡Guía guardada en la base de datos!")
+                st.rerun()
+
+else:
+    # MODO USUARIO (VIEWER)
+    if 'active_guide_id' in st.session_state:
+        guia = obtener_guia_por_id(st.session_state['active_guide_id'])
+        if guia:
+            # Desempaquetar DB
+            # id, titulo, fecha, blob, analisis, html, mermaid
+            g_pdf_b64 = base64.b64encode(guia[3]).decode('utf-8')
+            g_analisis = guia[4].replace("`", "\`").replace("${", "\${") # Escape para JS
+            g_html = guia[5].replace("`", "\`")
+            g_mermaid = guia[6].replace("`", "\`")
+            
+            # Inyectar datos en el HTML template
+            final_html = html_template.replace("__API_KEY__", API_KEY)
+            final_html = final_html.replace("__PDF_DATA__", g_pdf_b64)
+            final_html = final_html.replace("__ANALISIS_DATA__", g_analisis)
+            final_html = final_html.replace("__INFO_DATA__", g_html)
+            final_html = final_html.replace("__MERMAID_DATA__", g_mermaid)
+            
+            components.html(final_html, height=1000, scrolling=False)
+        else:
+            st.error("Error al cargar la guía.")
+    else:
+        st.title("Bienvenido a la Estación Médica")
+        st.info("👈 Selecciona una guía del menú lateral para comenzar.")
