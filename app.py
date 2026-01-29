@@ -17,7 +17,7 @@ html_template = """
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Estación Médica V36 (Safe Queue)</title>
+    <title>Estación Médica V37 (Ironclad)</title>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -46,6 +46,9 @@ html_template = """
         .content-area { flex: 1; overflow: auto; position: relative; display: flex; flex-direction: column; }
         .tab-content { display: none; width: 100%; }
         .tab-content.active { display: block; }
+
+        /* STATUS BAR (CRÍTICO PARA UX) */
+        #status-bar { padding: 10px; background: #fff9c4; color: #f57f17; text-align: center; font-weight: bold; font-size: 13px; border-bottom: 1px solid #fff176; display: none; }
 
         /* --- MARKDOWN --- */
         .markdown-wrapper { padding: 40px; max-width: 900px; margin: auto; background: white; min-height: 100%; }
@@ -82,9 +85,6 @@ html_template = """
         .footer-list { display: flex; flex-wrap: wrap; justify-content: center; gap: 15px; }
         .footer-item { background: rgba(255,255,255,0.15); padding: 10px 20px; border-radius: 30px; font-size: 14px; font-weight: 500; }
 
-        /* STATUS BAR */
-        #status-bar { padding: 15px; background: #e3f2fd; color: #0d47a1; text-align: center; font-weight: bold; border-bottom: 1px solid #bbdefb; display: none; }
-
         /* UI ELEMENTS */
         button { cursor: pointer; padding: 8px 16px; border-radius: 4px; border: none; font-weight: 600; font-size: 13px; box-shadow: 0 1px 3px rgba(0,0,0,0.2); }
         .btn-control { background: #fff; color: #333; }
@@ -97,6 +97,7 @@ html_template = """
         .msg { padding: 12px 16px; border-radius: 12px; margin-bottom: 12px; font-size: 14px; max-width: 85%; }
         .msg.user { background: #e3f2fd; color: #1565c0; align-self: flex-end; }
         .msg.ai { background: #fff; border: 1px solid #eee; align-self: flex-start; }
+        .msg.loading { color: #888; font-style: italic; }
     </style>
 </head>
 <body>
@@ -113,7 +114,7 @@ html_template = """
             <div id="drop-zone" style="flex:1; display:flex; flex-direction:column; justify-content:center; align-items:center; color:#ccc; cursor:pointer;">
                 <div style="font-size:50px; margin-bottom:15px;">📁</div>
                 <div style="font-weight:bold; font-size:18px;">ARRASTRA TU GUÍA CLÍNICA AQUÍ</div>
-                <div style="font-size:13px; margin-top:5px; opacity:0.7;">Análisis + Infografía PRO</div>
+                <div style="font-size:13px; margin-top:5px; opacity:0.7;">Análisis Técnico + Infografía PRO</div>
             </div>
             <div id="pdf-container" class="pdf-scroll-container" style="display:none;"></div>
         </div>
@@ -126,8 +127,8 @@ html_template = """
                 <button id="btn-save-img" class="btn-primary" onclick="descargarPoster()">📸 Descargar Imagen</button>
             </div>
             
-            <div id="status-bar">🚀 Iniciando procesos...</div>
-            
+            <div id="status-bar"></div>
+
             <div class="content-area">
                 <div id="tab-analisis" class="tab-content active">
                     <div class="markdown-wrapper">
@@ -192,15 +193,14 @@ html_template = """
             if(file && file.type === "application/pdf") {
                 dropZone.style.display = "none";
                 document.getElementById('pdf-container').style.display = "block"; 
-                document.getElementById('analisis-content').innerHTML = "<div style='text-align:center; margin-top:50px;'>🧠 <b>Esperando turno de análisis...</b></div>";
-                document.getElementById('infografia-visual-container').innerHTML = "<div style='padding:80px; text-align:center; color:#999;'>🎨 <b>En cola de diseño...</b></div>";
-                
+                document.getElementById('analisis-content').innerHTML = "<div style='text-align:center; margin-top:50px;'>🧠 <b>Esperando turno...</b></div>";
+                document.getElementById('infografia-visual-container').innerHTML = "<div style='padding:80px; text-align:center; color:#999;'>🎨 <b>Esperando turno...</b></div>";
                 const fileURL = URL.createObjectURL(file);
                 document.getElementById('btn-download').href = fileURL;
                 document.getElementById('btn-download').style.display = 'inline-block';
                 cargarPDF(fileURL);
                 const reader = new FileReader();
-                reader.onload = async () => { globalPdfBase64 = reader.result.split(',')[1]; iniciarSecuenciaSegura(); };
+                reader.onload = async () => { globalPdfBase64 = reader.result.split(',')[1]; iniciarSecuenciaBlindada(); };
                 reader.readAsDataURL(file);
             }
         });
@@ -221,34 +221,45 @@ html_template = """
         }
         function ajustarZoom(d) { if(pdfDoc) { scale = Math.max(0.2, scale + d); renderizarTodo(); } }
 
-        // --- MODO COLA DE SEGURIDAD (V36) ---
-        // Ejecuta paso a paso para evitar el error 429 "Saturado"
-        async function iniciarSecuenciaSegura() {
+        // --- SECUENCIA BLINDADA (V37) ---
+        async function iniciarSecuenciaBlindada() {
             const sb = document.getElementById('status-bar');
             sb.style.display = 'block';
             
             // PASO 1: ANÁLISIS DE TEXTO
-            sb.innerText = "⏳ Paso 1/3: Analizando Texto Clínico...";
-            await procesarAnalisisTexto();
+            sb.innerText = "🧠 Paso 1/3: Analizando Evidencia...";
+            sb.style.backgroundColor = "#e3f2fd";
+            await procesarAnalisisTexto(); // Esto espera a que termine
             
-            // PASO 2: DISEÑO INFOGRAFÍA
-            sb.innerText = "⏳ Paso 2/3: Diseñando Póster Visual...";
+            // COOLDOWN OBLIGATORIO (5 SEGUNDOS)
+            for(let i=5; i>0; i--) {
+                sb.innerText = `⏳ Enfriando motores IA para evitar bloqueo (${i}s)...`;
+                sb.style.backgroundColor = "#fff3e0";
+                await new Promise(r => setTimeout(r, 1000));
+            }
+
+            // PASO 2: INFOGRAFÍA
+            sb.innerText = "🎨 Paso 2/3: Diseñando Infografía...";
+            sb.style.backgroundColor = "#e8f5e9";
             await procesarInfografiaVisual();
-            
-            // PASO 3: GRÁFICO (Se llama dentro de infografía, pero actualizamos estado)
-            sb.innerText = "✅ Proceso completado con éxito";
+
+            // FIN
+            sb.innerText = "✅ Procesos Completados";
             setTimeout(() => { sb.style.display = 'none'; }, 3000);
         }
 
+        // --- HILO 1: ANÁLISIS ---
         async function procesarAnalisisTexto() {
             const prompt = `
-            ERES UN MOTOR DE DATOS. PROHIBIDO SALUDAR. EMPIEZA DIRECTO CON EL TÍTULO (# Título).
+            ERES UN MOTOR DE DATOS. PROHIBIDO SALUDAR O PRESENTARSE.
+            TU RESPUESTA DEBE EMPEZAR INMEDIATAMENTE CON EL TÍTULO EN MARKDOWN (#).
             Analiza la Guía: 1. Definiciones 2. Algoritmo Agudo 3. Soporte Vital 4. Semáforo Evidencia 5. Poblaciones.
             `;
-            const res = await llamarIA(prompt); // Espera a que termine
+            const res = await llamarIA(prompt);
             if(res) document.getElementById('analisis-content').innerHTML = marked.parse(limpiarTexto(res));
         }
 
+        // --- HILO 2: INFOGRAFÍA ---
         async function procesarInfografiaVisual() {
             const promptPoster = `
             Genera HTML para PÓSTER MÉDICO (Diseño V31). SOLO HTML.
@@ -271,13 +282,16 @@ html_template = """
             <div class="poster-footer"><h3>TAKE HOME</h3><div class="footer-list"><div class="footer-item">M1</div></div></div>
             `;
             
-            const html = await llamarIA(promptPoster); // Espera a que termine
+            const html = await llamarIA(promptPoster);
             if(html) {
                 document.getElementById('infografia-visual-container').innerHTML = limpiarTexto(html);
+                
+                // Pausa antes del gráfico
+                await new Promise(r => setTimeout(r, 2000));
+                
                 const target = document.getElementById('mermaid-placeholder');
                 if(target) {
                     target.innerHTML = "Generando gráfico...";
-                    // Llamada al gráfico (Paso 3 implícito)
                     const mer = await llamarIA(`Crea 'mermaid graph TD' SIMPLE (max 8 nodos). TEXTOS ENTRE COMILLAS DOBLES. Solo código.`);
                     if(mer) {
                         target.innerHTML = `<div class="mermaid">${limpiarMermaid(mer)}</div>`;
@@ -290,13 +304,22 @@ html_template = """
             }
         }
 
-        async function llamarIA(p) {
-            if (WORKING_MODEL) return await fetchGemini(p, WORKING_MODEL);
-            for (let m of MODEL_CANDIDATES) {
-                const r = await fetchGemini(p, m);
-                if (r && !r.startsWith("Error")) { WORKING_MODEL = m; return r; }
+        // --- MOTOR IA CON REINTENTO INFINITO (V37) ---
+        async function llamarIA(p, attempt = 1) {
+            try {
+                if (WORKING_MODEL) return await fetchGemini(p, WORKING_MODEL);
+                for (let m of MODEL_CANDIDATES) {
+                    const r = await fetchGemini(p, m);
+                    if (r && !r.startsWith("Error")) { WORKING_MODEL = m; return r; }
+                }
+                throw new Error("Modelos fallaron");
+            } catch (e) {
+                // Si falla (Rate Limit), esperamos 10 segundos y reintentamos SIEMPRE
+                const waitTime = 10000; 
+                console.warn(`Intento ${attempt} fallido. Reintentando en ${waitTime/1000}s...`);
+                await new Promise(r => setTimeout(r, waitTime));
+                return llamarIA(p, attempt + 1);
             }
-            return "Error: Servicio saturado. Intente más tarde.";
         }
 
         async function fetchGemini(prompt, modelo) {
@@ -306,8 +329,9 @@ html_template = """
                     method: 'POST', headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({ contents: [{ parts: [{ text: prompt }, { inline_data: { mime_type: "application/pdf", data: globalPdfBase64 } }] }] })
                 });
+                if (r.status === 429) throw new Error("429"); // Forzar retry
                 const d = await r.json();
-                if(d.error) return "Error";
+                if(d.error) throw new Error(d.error.message);
                 return d.candidates[0].content.parts[0].text;
             } catch(e) { return "Error"; }
         }
@@ -319,7 +343,7 @@ html_template = """
             const i = document.getElementById('user-input'), h = document.getElementById('chat-history');
             const t = i.value; if(!t) return;
             h.innerHTML += `<div class="msg user">${t}</div>`; i.value=""; h.scrollTop = h.scrollHeight;
-            const r = await llamarIA(`Actúa como experto médico. Responde brevemente: ${t}`);
+            const r = await llamarIA(`Respuesta técnica breve: ${t}`);
             h.innerHTML += `<div class="msg ai">${r ? marked.parse(limpiarTexto(r)) : "Error"}</div>`;
             h.scrollTop = h.scrollHeight;
         }
