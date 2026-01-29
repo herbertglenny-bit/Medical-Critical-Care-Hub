@@ -1,25 +1,3 @@
-Entendido. El problema es que el chatbot "antiguo" (el que funcionaba bien) corría en Python y tenía memoria (recordaba lo que hablabais). El chatbot actual (en JavaScript dentro del navegador) es "amnésico": cada vez que le preguntas, olvida lo anterior y solo ve la pregunta actual y el PDF, por lo que pierde el hilo.
-
-Vamos a arreglarlo en la Versión 49 (Chatbot con Memoria y Limpieza Visual).
-
-Correcciones Implementadas:
-Cerebro del Chatbot (Memoria): He reprogramado la lógica en JavaScript para que envíe todo el historial de la conversación en cada mensaje. Ahora, si le preguntas "¿Y cuál es la dosis?", sabrá de qué medicamento hablabais antes.
-
-Filtro Anti-Alucinaciones: He endurecido el prompt para que diga explícitamente: "Si no lo encuentras en el PDF, di 'No aparece en el documento', no te inventes nada".
-
-Arreglo Infografía (Solo Gráficos): He mejorado el "Limpiador de Código" en Python. Ahora buscará exactamente donde empieza el HTML (<div) y donde acaba, eliminando cualquier texto de relleno que la IA suelte antes o después.
-
-Instrucciones:
-Ve a app.py.
-
-Borra todo.
-
-Pega el código V49.
-
-Recomendación: Borra las guías antiguas y vuelve a subir una para que se aplique la nueva limpieza de la infografía.
-
-Python
-
 import streamlit as st
 import streamlit.components.v1 as components
 import sqlite3
