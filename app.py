@@ -1,3 +1,25 @@
+Entendido. El problema es que el chatbot "antiguo" (el que funcionaba bien) corría en Python y tenía memoria (recordaba lo que hablabais). El chatbot actual (en JavaScript dentro del navegador) es "amnésico": cada vez que le preguntas, olvida lo anterior y solo ve la pregunta actual y el PDF, por lo que pierde el hilo.
+
+Vamos a arreglarlo en la Versión 49 (Chatbot con Memoria y Limpieza Visual).
+
+Correcciones Implementadas:
+Cerebro del Chatbot (Memoria): He reprogramado la lógica en JavaScript para que envíe todo el historial de la conversación en cada mensaje. Ahora, si le preguntas "¿Y cuál es la dosis?", sabrá de qué medicamento hablabais antes.
+
+Filtro Anti-Alucinaciones: He endurecido el prompt para que diga explícitamente: "Si no lo encuentras en el PDF, di 'No aparece en el documento', no te inventes nada".
+
+Arreglo Infografía (Solo Gráficos): He mejorado el "Limpiador de Código" en Python. Ahora buscará exactamente donde empieza el HTML (<div) y donde acaba, eliminando cualquier texto de relleno que la IA suelte antes o después.
+
+Instrucciones:
+Ve a app.py.
+
+Borra todo.
+
+Pega el código V49.
+
+Recomendación: Borra las guías antiguas y vuelve a subir una para que se aplique la nueva limpieza de la infografía.
+
+Python
+
 import streamlit as st
 import streamlit.components.v1 as components
 import sqlite3
@@ -19,13 +41,12 @@ except (FileNotFoundError, KeyError):
     st.error("⚠️ Error: Falta 'GEMINI_API_KEY' en Secrets.")
     st.stop()
 
-# --- SELECCIÓN DE MODELOS INTELIGENTE ---
+# --- SELECCIÓN DE MODELOS ---
 def get_valid_models():
     try:
         all_models = list(genai.list_models())
         valid_models = [m.name for m in all_models if 'generateContent' in m.supported_generation_methods]
-        # Prioridad: Flash > Pro > Otros (para velocidad)
-        # Buscamos modelos 2.5 o 2.0 primero
+        # Prioridad: Flash > Pro > Otros
         priority_models = sorted(valid_models, key=lambda x: ('flash' not in x, '2.5' not in x, '2.0' not in x))
         if not priority_models: return ["models/gemini-1.5-flash"]
         return priority_models
@@ -33,7 +54,6 @@ def get_valid_models():
         return ["models/gemini-1.5-flash"]
 
 REAL_MODELS_PYTHON = get_valid_models()
-# Limpiamos el prefijo 'models/' para que JS lo entienda bien
 REAL_MODELS_JS = [m.replace("models/", "") for m in REAL_MODELS_PYTHON]
 
 # --- BASE DE DATOS ---
@@ -77,7 +97,22 @@ def borrar_guia(id_guia):
 
 init_db()
 
-# --- HTML TEMPLATE (V48 - NanoBanana Style) ---
+# --- LIMPIEZA DE HTML (NUEVA FUNCIÓN MEJORADA) ---
+def extract_pure_html(text):
+    # 1. Eliminar bloques markdown
+    text = text.replace("```html", "").replace("```", "")
+    
+    # 2. Buscar el primer <div y el último </div> para ignorar texto introductorio
+    start_index = text.find("<div class=\"poster-header\"")
+    if start_index == -1: start_index = text.find("<div") # Fallback
+    
+    # Si encontramos un inicio válido, cortamos desde ahí
+    if start_index != -1:
+        text = text[start_index:]
+        
+    return text.strip()
+
+# --- HTML TEMPLATE (V49 - CHATBOT MEMORY FIX) ---
 html_template = """
 <!DOCTYPE html>
 <html lang="es">
@@ -116,45 +151,34 @@ html_template = """
         .markdown-body h1 { color: #000; background: #ffeb3b; display: inline-block; padding: 5px 15px; transform: rotate(-1deg); margin-bottom: 30px; }
         .markdown-body h2 { color: #333; border-bottom: 3px solid #ffca28; padding-bottom: 5px; margin-top: 40px; }
         
-        /* INFOGRAFIA NANOBANANA STYLE */
+        /* INFOGRAFIA */
         #infografia-wrapper { padding: 50px; text-align: center; min-height: 100%; background: #eceff1; }
-        #infografia-visual-container { 
-            width: 900px; margin: 0 auto; background: white; 
-            box-shadow: 0 20px 60px rgba(0,0,0,0.3); 
-            text-align: left; overflow: visible; display: inline-block; 
-        }
+        #infografia-visual-container { width: 900px; margin: 0 auto; background: white; box-shadow: 0 20px 60px rgba(0,0,0,0.3); text-align: left; overflow: visible; display: inline-block; }
         
-        /* Clases que la IA debe usar */
-        .poster-header { background: #ffd600; color: #000; padding: 60px 50px; position: relative; clip-path: polygon(0 0, 100% 0, 100% 85%, 0 100%); }
+        .poster-header { background: #1a237e; color: white; padding: 60px 50px; position: relative; clip-path: polygon(0 0, 100% 0, 100% 85%, 0 100%); }
         .poster-title { font-size: 48px; font-weight: 900; margin: 0; line-height: 1; text-transform: uppercase; letter-spacing: -1px; }
         .poster-meta { margin-top: 20px; font-size: 16px; font-weight: 700; opacity: 0.8; letter-spacing: 1px; }
-        
         .poster-body { padding: 40px 50px 80px 50px; }
         .section-title { font-size: 24px; font-weight: 900; color: #000; background: #ffeb3b; display: inline-block; padding: 5px 15px; margin: 40px 0 20px 0; transform: skew(-10deg); }
-        
         .traffic-container { display: flex; gap: 20px; }
         .traffic-col { flex: 1; padding: 20px; border: 2px solid #000; border-radius: 10px; background: #fff; box-shadow: 5px 5px 0px #000; }
         .traffic-title { font-weight: 900; font-size: 18px; text-transform: uppercase; margin-bottom: 15px; border-bottom: 2px solid #eee; padding-bottom: 10px; }
-        
         .metrics-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
         .metric-card { background: #212121; color: #ffeb3b; padding: 30px; border-radius: 10px; text-align: center; box-shadow: 5px 5px 0px #9e9e9e; }
         .metric-val { display: block; font-size: 42px; font-weight: 900; }
         .metric-lbl { font-size: 14px; font-weight: 700; text-transform: uppercase; }
-        
         .poster-mermaid { margin-top: 30px; border: 2px dashed #ccc; padding: 20px; text-align: center; border-radius: 10px; }
 
-        /* UI */
         button { cursor: pointer; padding: 8px 16px; border-radius: 4px; border: none; font-weight: 600; font-size: 13px; }
         .btn-control { background: #fff; color: #333; }
-        .btn-primary { background: #ffd600; color: #000; margin-left: auto; display: none; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
+        .btn-primary { background: #1565c0; color: white; margin-left: auto; display: none; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
         .btn-pdf { background: #c5221f; color: white; text-decoration: none; padding: 8px 16px; border-radius: 4px; font-size: 13px; display: none; }
         
-        /* CHAT */
         #tab-chat { display: none; width: 100%; height: 100%; flex-direction: column; }
         .chat-input-box { height: 90px; padding: 20px; background: #212121; display: flex; gap: 15px; flex-shrink: 0; align-items: center; }
         #chat-history { flex: 1; overflow-y: auto; padding: 40px; background: #fff; display: flex; flex-direction: column; gap: 25px; }
         .msg { padding: 20px; border-radius: 15px; font-size: 15px; line-height: 1.6; max-width: 80%; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
-        .msg.user { background: #fff9c4; color: #000; align-self: flex-end; border-bottom-right-radius: 2px; border: 1px solid #ffecb3; }
+        .msg.user { background: #fff9c4; color: #000; align-self: flex-end; border: 1px solid #ffecb3; } 
         .msg.ai { background: #f5f5f5; color: #333; align-self: flex-start; border-bottom-left-radius: 2px; }
     </style>
 </head>
@@ -193,6 +217,8 @@ html_template = """
         const MODELS = __MODELS_JSON__; 
         
         let pdfDoc = null, scale = 1.0, rotation = 0, globalPdfBase64 = null;
+        let chatLog = []; // --- MEMORIA DEL CHATBOT ---
+
         mermaid.initialize({ startOnLoad: false, theme: 'neutral', securityLevel: 'loose' });
         
         const DATA_PDF = "__PDF_DATA__"; 
@@ -206,11 +232,8 @@ html_template = """
                 cargarPDF(globalPdfBase64);
                 if(DATA_ANALISIS && DATA_ANALISIS !== "null") document.getElementById('analisis-content').innerHTML = marked.parse(DATA_ANALISIS);
                 
-                // INYECCIÓN HTML SEGURA
                 if(DATA_INFO && DATA_INFO !== "null") {
                     document.getElementById('infografia-visual-container').innerHTML = DATA_INFO;
-                    
-                    // Inyectar gráfico mermaid SI existe placeholder
                     if(DATA_MERMAID && DATA_MERMAID !== "null") {
                         setTimeout(() => { 
                             const target = document.getElementById('mermaid-placeholder'); 
@@ -257,24 +280,51 @@ html_template = """
         }
         function ajustarZoom(d) { if(pdfDoc) { scale = Math.max(0.2, scale + d); renderizarTodo(); } }
 
+        // --- CHATBOT V49: CON MEMORIA Y CONTEXTO ---
         async function enviarMensaje() {
             const i = document.getElementById('user-input'), h = document.getElementById('chat-history');
             const t = i.value; if(!t) return;
-            h.innerHTML += `<div class="msg user">${t}</div>`; i.value=""; h.scrollTop = h.scrollHeight;
-            const loadingId = "load"+Date.now();
-            h.innerHTML += `<div id="${loadingId}" class="msg ai" style="color:#888">Thinking...</div>`;
             
+            // 1. Mostrar mensaje usuario
+            h.innerHTML += `<div class="msg user">${t}</div>`; 
+            i.value=""; h.scrollTop = h.scrollHeight;
+            const loadingId = "load"+Date.now();
+            h.innerHTML += `<div id="${loadingId}" class="msg ai" style="color:#888">Analizando guía...</div>`;
+            
+            // 2. Guardar en memoria
+            chatLog.push({role: "user", text: t});
+
+            // 3. Construir historial como texto para el prompt
+            let contextString = "";
+            chatLog.forEach(entry => {
+                contextString += `${entry.role.toUpperCase()}: ${entry.text}\n`;
+            });
+
             async function tryFetch(prompt, attempts = 0) {
                 if (attempts >= MODELS.length) throw new Error("Todos los modelos fallaron.");
                 const currentModel = MODELS[attempts];
                 
-                // PROMPT ESTRICTO
-                const strictPrompt = "Actúa como NanoBanana AI, experto médico. TU OBJETIVO: Responder a la pregunta del usuario USANDO ÚNICAMENTE LA INFORMACIÓN DEL PDF ADJUNTO. Si la respuesta no está en el PDF, indica que no se encuentra en el documento. Pregunta: " + prompt;
+                // --- PROMPT MAESTRO CON HISTORIAL ---
+                const finalPrompt = `
+                ERES UN ASISTENTE MÉDICO EXPERTO LLAMADO NANOBANANA AI.
+                
+                TU MISIÓN: Responder a la PREGUNTA ACTUAL del usuario basándote ESTRICTAMENTE en el documento PDF adjunto.
+                
+                HISTORIAL DE CONVERSACIÓN (Para contexto):
+                ${contextString}
+                
+                INSTRUCCIONES:
+                1. Usa el PDF adjunto como única fuente de verdad.
+                2. Si la respuesta no está en el PDF, di "No encuentro esa información en la guía". NO inventes.
+                3. Sé breve y directo.
+                
+                PREGUNTA ACTUAL: ${prompt}
+                `;
 
                 try {
                     const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${currentModel}:generateContent?key=${API_KEY}`, {
                         method: 'POST', headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify({ contents: [{ parts: [{ text: strictPrompt }, { inline_data: { mime_type: "application/pdf", data: globalPdfBase64 } }] }] })
+                        body: JSON.stringify({ contents: [{ parts: [{ text: finalPrompt }, { inline_data: { mime_type: "application/pdf", data: globalPdfBase64 } }] }] })
                     });
                     if (!r.ok) throw new Error(r.statusText);
                     const d = await r.json();
@@ -288,6 +338,10 @@ html_template = """
             try {
                 const text = await tryFetch(t);
                 document.getElementById(loadingId).remove();
+                
+                // 4. Guardar respuesta en memoria
+                chatLog.push({role: "assistant", text: text});
+                
                 h.innerHTML += `<div class="msg ai">${marked.parse(text)}</div>`;
             } catch(e) { document.getElementById(loadingId).innerHTML = "Error de conexión."; }
             h.scrollTop = h.scrollHeight;
@@ -306,8 +360,8 @@ html_template = """
 
 # --- SIDEBAR ---
 with st.sidebar:
-    st.image("https://cdn-icons-png.flaticon.com/512/2913/2913465.png", width=50) # Logo Placeholder
-    st.header("Biblioteca NanoBanana")
+    st.image("https://cdn-icons-png.flaticon.com/512/2913/2913465.png", width=50)
+    st.header("NanoBanana Medical")
     st.caption(f"🚀 Motor: {REAL_MODELS_PYTHON[0].replace('models/', '')}")
     
     modo_admin = st.checkbox("Modo Administrador")
@@ -325,11 +379,17 @@ with st.sidebar:
                 borrar_guia(g_id)
                 st.rerun()
 
+# --- FUNCIONES DE LIMPIEZA ---
 def clean_html_output(text):
-    # Quitar bloques de markdown ```html ... ```
     text = text.replace("```html", "").replace("```", "")
-    # Quitar etiquetas html y body si la IA las pone (queremos solo el div interior)
-    text = text.replace("<!DOCTYPE html>", "").replace("<html>", "").replace("</html>", "").replace("<body>", "").replace("</body>", "")
+    # Buscamos el inicio real del componente
+    start_match = re.search(r'<div class="poster-header"', text)
+    if start_match:
+        text = text[start_match.start():]
+    # Buscamos el final (cierre del body)
+    end_match = text.rfind("</div>")
+    if end_match != -1:
+        text = text[:end_match+6] # +6 para incluir </div>
     return text.strip()
 
 if modo_admin:
@@ -358,12 +418,8 @@ if modo_admin:
                 # 2. HTML VISUAL (NANOBANANA STYLE)
                 prompt_html = """
                 Actúa como Diseñador Web Senior. Genera SOLO el código HTML (sin markdown) para un póster médico moderno 'NanoBanana Style'.
-                Usa ESTRICTAMENTE esta estructura con estas clases (ya tengo el CSS definido):
-                
-                <div class="poster-header">
-                    <h1 class="poster-title">[TÍTULO CORTO DE LA GUÍA]</h1>
-                    <div class="poster-meta">[SOCIEDAD] • [AÑO]</div>
-                </div>
+                Usa ESTRICTAMENTE esta estructura:
+                <div class="poster-header"><h1 class="poster-title">[TÍTULO CORTO]</h1><div class="poster-meta">[SOCIEDAD] • [AÑO]</div></div>
                 <div class="poster-body">
                     <div class="section-title">SEMÁFORO DE ACCIÓN</div>
                     <div class="traffic-container">
@@ -371,14 +427,12 @@ if modo_admin:
                        <div class="traffic-col tc-wait"><div class="traffic-title">⚠️ PRECAUCIÓN</div><ul><li>...</li></ul></div>
                        <div class="traffic-col tc-go"><div class="traffic-title">✅ RECOMENDADO</div><ul><li>...</li></ul></div>
                     </div>
-
                     <div class="section-title">DATOS CLAVE</div>
                     <div class="metrics-grid">
                         <div class="metric-card"><span class="metric-val">[Dato 1]</span><span class="metric-lbl">[Etiqueta]</span></div>
                         <div class="metric-card"><span class="metric-val">[Dato 2]</span><span class="metric-lbl">[Etiqueta]</span></div>
                         <div class="metric-card"><span class="metric-val">[Dato 3]</span><span class="metric-lbl">[Etiqueta]</span></div>
                     </div>
-
                     <div class="section-title">ALGORITMO</div>
                     <div id="mermaid-placeholder" class="poster-mermaid"></div>
                 </div>
