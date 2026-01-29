@@ -17,7 +17,7 @@ html_template = """
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Estación Médica V33 (Silent & Scroll)</title>
+    <title>Estación Médica V34 (Chat Fix)</title>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -31,26 +31,11 @@ html_template = """
         body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; font-family: 'Segoe UI', Roboto, sans-serif; background: #202124; }
         .main-container { display: flex; width: 100vw; height: 100vh; }
         
-        /* --- VISOR PDF (Scroll Nativo) --- */
+        /* --- VISOR PDF --- */
         .pdf-section { width: 50%; height: 100%; display: flex; flex-direction: column; border-right: 1px solid #444; background: #525659; }
         .pdf-toolbar { height: 50px; background: #323639; display: flex; align-items: center; justify-content: center; gap: 15px; box-shadow: 0 2px 5px rgba(0,0,0,0.2); z-index: 10; flex-shrink: 0; }
-        
-        /* FIX SCROLL PDF */
-        .pdf-scroll-container { 
-            flex: 1; 
-            overflow: auto; /* Barras automáticas */
-            padding: 40px; 
-            background: #525659; 
-            text-align: center; 
-            display: block; /* Importante para el overflow */
-        }
-        .pdf-page-canvas { 
-            display: inline-block; 
-            box-shadow: 0 4px 15px rgba(0,0,0,0.6); 
-            margin-bottom: 20px; 
-            vertical-align: top; 
-            background: white; 
-        }
+        .pdf-scroll-container { flex: 1; overflow: auto; padding: 40px; background: #525659; text-align: center; display: block; }
+        .pdf-page-canvas { display: inline-block; box-shadow: 0 4px 15px rgba(0,0,0,0.6); margin-bottom: 20px; vertical-align: top; background: white; }
 
         /* --- PANELES IA --- */
         .right-panel { width: 50%; height: 100%; display: flex; flex-direction: column; background: #f0f2f5; }
@@ -58,15 +43,7 @@ html_template = """
         .tab-btn { flex: 1; border: none; background: transparent; cursor: pointer; font-weight: 600; color: #5f6368; font-size: 14px; border-bottom: 3px solid transparent; }
         .tab-btn.active { color: #1a73e8; border-bottom: 3px solid #1a73e8; background: #e8f0fe; }
         
-        /* CONTENIDO DERECHO CON SCROLL */
-        .content-area { 
-            flex: 1; 
-            overflow: auto; /* Scroll X e Y habilitado */
-            position: relative; 
-            display: flex; 
-            flex-direction: column;
-        }
-        
+        .content-area { flex: 1; overflow: auto; position: relative; display: flex; flex-direction: column; }
         .tab-content { display: none; width: 100%; }
         .tab-content.active { display: block; }
 
@@ -76,66 +53,36 @@ html_template = """
         .markdown-body h1 { color: #1565c0; border-bottom: 2px solid #eee; margin-top: 0; }
         .markdown-body h2 { color: #2c3e50; margin-top: 30px; border-left: 4px solid #1565c0; padding-left: 10px; }
 
-        /* --- INFOGRAFÍA VISUAL (SOLUCIÓN FINAL SCROLL + DISEÑO) --- */
-        #infografia-wrapper { 
-            /* Esto permite que el contenido se desborde y el padre (.content-area) maneje el scroll */
-            padding: 50px; 
-            text-align: center; 
-            min-height: 100%; 
-            background: #dce1e6;
-            display: block; /* Para que margin:auto funcione en el hijo */
-        }
+        /* --- INFOGRAFÍA --- */
+        #infografia-wrapper { padding: 50px; text-align: center; min-height: 100%; background: #dce1e6; display: block; }
+        #infografia-visual-container { width: 900px; margin: 0 auto; background: white; box-shadow: 0 15px 50px rgba(0,0,0,0.2); font-family: 'Roboto', sans-serif; color: #333; text-align: left; overflow: visible; display: inline-block; }
 
-        #infografia-visual-container {
-            width: 900px; /* Ancho FIJO */
-            margin: 0 auto; /* Centrado horizontal si hay espacio */
-            background: white;
-            box-shadow: 0 15px 50px rgba(0,0,0,0.2);
-            font-family: 'Roboto', sans-serif;
-            color: #333;
-            text-align: left; /* Reset alineación interna */
-            overflow: visible; 
-            display: inline-block; /* Truco para que funcione el text-align center del padre */
-        }
-
-        /* ESTILOS DE DISEÑO (V31) */
+        /* Estilos Póster */
         .poster-header { background: #003c8f; color: white; padding: 50px; position: relative; }
         .poster-header:after { content: ""; display: block; width: 100%; height: 10px; background: #ffca28; position: absolute; bottom: 0; left: 0; }
         .poster-title { font-size: 38px; font-weight: 900; margin: 0; line-height: 1.1; text-transform: uppercase; letter-spacing: -0.5px; }
         .poster-meta { margin-top: 15px; font-size: 13px; font-weight: 300; opacity: 0.9; display: flex; gap: 20px; text-transform: uppercase; letter-spacing: 1px; }
-
         .poster-body { padding: 50px; display: flex; flex-direction: column; gap: 40px; }
-
         .section-title { font-size: 18px; font-weight: 900; color: #555; text-transform: uppercase; border-left: 5px solid #003c8f; padding-left: 10px; margin-bottom: 20px; }
-        
         .traffic-container { display: flex; gap: 20px; align-items: stretch; }
         .traffic-col { flex: 1; padding: 25px; border-radius: 8px; position: relative; }
-        .tc-stop { background: #fce8e6; border: 1px solid #fad2cf; }
-        .tc-wait { background: #fef7e0; border: 1px solid #fce8b2; }
-        .tc-go { background: #e6f4ea; border: 1px solid #ceead6; }
-        
+        .tc-stop { background: #fce8e6; border: 1px solid #fad2cf; } .tc-stop .traffic-title { color: #c5221f; }
+        .tc-wait { background: #fef7e0; border: 1px solid #fce8b2; } .tc-wait .traffic-title { color: #f29900; }
+        .tc-go { background: #e6f4ea; border: 1px solid #ceead6; } .tc-go .traffic-title { color: #137333; }
         .traffic-icon { font-size: 30px; margin-bottom: 10px; display: block; }
         .traffic-title { font-weight: 900; font-size: 16px; margin-bottom: 10px; text-transform: uppercase; }
-        .tc-stop .traffic-title { color: #c5221f; }
-        .tc-wait .traffic-title { color: #f29900; }
-        .tc-go .traffic-title { color: #137333; }
-        
         .traffic-col ul { padding-left: 15px; margin: 0; }
         .traffic-col li { margin-bottom: 8px; font-size: 14px; line-height: 1.4; color: #444; }
-
         .metrics-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
         .metric-card { background: #003c8f; color: white; padding: 25px; border-radius: 8px; text-align: center; }
         .metric-val { display: block; font-size: 36px; font-weight: 900; margin-bottom: 5px; }
         .metric-lbl { font-size: 12px; text-transform: uppercase; letter-spacing: 1px; opacity: 0.8; font-weight: 600; }
-
         .poster-mermaid { background: #f8f9fa; padding: 30px; border-radius: 8px; border: 1px solid #eee; text-align: center; }
-
         .poster-footer { background: #202124; color: white; padding: 40px 50px; text-align: center; }
-        .poster-footer h3 { color: #ffca28; margin: 0 0 20px 0; font-size: 16px; text-transform: uppercase; letter-spacing: 1px; }
         .footer-list { display: flex; flex-wrap: wrap; justify-content: center; gap: 15px; }
         .footer-item { background: rgba(255,255,255,0.15); padding: 10px 20px; border-radius: 30px; font-size: 14px; font-weight: 500; }
 
-        /* BOTONES UI */
+        /* UI ELEMENTS */
         button { cursor: pointer; padding: 8px 16px; border-radius: 4px; border: none; font-weight: 600; font-size: 13px; box-shadow: 0 1px 3px rgba(0,0,0,0.2); }
         .btn-control { background: #fff; color: #333; }
         .btn-primary { background: #0d47a1; color: white; margin-left: auto; display: none; }
@@ -147,6 +94,7 @@ html_template = """
         .msg { padding: 12px 16px; border-radius: 12px; margin-bottom: 12px; font-size: 14px; max-width: 85%; }
         .msg.user { background: #e3f2fd; color: #1565c0; align-self: flex-end; }
         .msg.ai { background: #fff; border: 1px solid #eee; align-self: flex-start; }
+        .msg.loading { color: #888; font-style: italic; }
     </style>
 </head>
 <body>
@@ -270,60 +218,37 @@ html_template = """
 
         function iniciarProcesamientoParalelo() { procesarAnalisisTexto(); procesarInfografiaVisual(); }
 
-        // --- HILO 1: ANÁLISIS SIN CHARLA ---
+        // --- HILO 1: ANÁLISIS ---
         async function procesarAnalisisTexto() {
-            // "Negative constraint" para silenciar a la IA
             const prompt = `
-            ERES UN MOTOR DE EXTRACCIÓN DE DATOS. 
-            TIENES PROHIBIDO SALUDAR, PRESENTARTE O DECIR "AQUÍ TIENES EL ANÁLISIS".
-            TU RESPUESTA DEBE EMPEZAR INMEDIATAMENTE CON EL TÍTULO EN MARKDOWN (#).
-            
-            Analiza la Guía Clínica:
-            1. Definiciones
-            2. Algoritmo Agudo (Metas/Dosis)
-            3. Soporte Vital
-            4. Semáforo Evidencia
-            5. Poblaciones
+            ERES UN MOTOR DE DATOS MÉDICOS. PROHIBIDO SALUDAR. EMPIEZA DIRECTO CON EL TÍTULO (# Título).
+            Analiza la Guía: 1. Definiciones 2. Algoritmo Agudo 3. Soporte Vital 4. Semáforo Evidencia 5. Poblaciones.
             `;
             const res = await llamarIA(prompt);
             if(res) document.getElementById('analisis-content').innerHTML = marked.parse(limpiarTexto(res));
         }
 
-        // --- HILO 2: INFOGRAFÍA VISUAL ---
+        // --- HILO 2: INFOGRAFÍA ---
         async function procesarInfografiaVisual() {
             const promptPoster = `
-            Actúa como Diseñador Gráfico Médico. Genera HTML para un PÓSTER VISUAL (Diseño V31).
-            ESTRUCTURA HTML OBLIGATORIA (Sin Markdown):
-            <div class="poster-header">
-                <h1 class="poster-title">TITULO</h1>
-                <div class="poster-meta">AÑO • SOCIEDAD • TEMA</div>
-            </div>
+            Genera HTML para PÓSTER MÉDICO (Diseño V31). SOLO HTML.
+            <div class="poster-header"><h1 class="poster-title">TITULO</h1><div class="poster-meta">META</div></div>
             <div class="poster-body">
-                <div class="section-title">SEMÁFORO DE CAMBIOS</div>
+                <div class="section-title">SEMÁFORO</div>
                 <div class="traffic-container">
-                    <div class="traffic-col tc-stop"><span class="traffic-icon">⛔</span><div class="traffic-title">STOP (NO HACER)</div><ul><li>...</li></ul></div>
+                    <div class="traffic-col tc-stop"><span class="traffic-icon">⛔</span><div class="traffic-title">STOP</div><ul><li>...</li></ul></div>
                     <div class="traffic-col tc-wait"><span class="traffic-icon">⚠️</span><div class="traffic-title">PRECAUCIÓN</div><ul><li>...</li></ul></div>
-                    <div class="traffic-col tc-go"><span class="traffic-icon">✅</span><div class="traffic-title">GO (ESTÁNDAR)</div><ul><li>...</li></ul></div>
+                    <div class="traffic-col tc-go"><span class="traffic-icon">✅</span><div class="traffic-title">GO</div><ul><li>...</li></ul></div>
                 </div>
-                
-                <div class="section-title" style="margin-top:30px;">CIFRAS CLAVE</div>
+                <div class="section-title">CIFRAS CLAVE</div>
                 <div class="metrics-grid">
-                    <div class="metric-card"><span class="metric-val">X</span><span class="metric-lbl">Label</span></div>
-                    <div class="metric-card"><span class="metric-val">Y</span><span class="metric-lbl">Label</span></div>
-                    <div class="metric-card"><span class="metric-val">Z</span><span class="metric-lbl">Label</span></div>
+                    <div class="metric-card"><span class="metric-val">X</span><span class="metric-lbl">L1</span></div>
+                    <div class="metric-card"><span class="metric-val">Y</span><span class="metric-lbl">L2</span></div>
+                    <div class="metric-card"><span class="metric-val">Z</span><span class="metric-lbl">L3</span></div>
                 </div>
-
-                <div class="section-title" style="margin-top:30px;">ALGORITMO DE FLUJO</div>
-                <div id="mermaid-placeholder" class="poster-mermaid"></div>
+                <div class="section-title">ALGORITMO</div><div id="mermaid-placeholder" class="poster-mermaid"></div>
             </div>
-            <div class="poster-footer">
-                <h3>TAKE HOME MESSAGES</h3>
-                <div class="footer-list">
-                    <div class="footer-item">Mensaje 1</div>
-                    <div class="footer-item">Mensaje 2</div>
-                    <div class="footer-item">Mensaje 3</div>
-                </div>
-            </div>
+            <div class="poster-footer"><h3>TAKE HOME</h3><div class="footer-list"><div class="footer-item">M1</div></div></div>
             `;
             
             const html = await llamarIA(promptPoster);
@@ -344,13 +269,23 @@ html_template = """
             }
         }
 
-        async function llamarIA(p) {
-            if (WORKING_MODEL) return await fetchGemini(p, WORKING_MODEL);
-            for (let m of MODEL_CANDIDATES) {
-                const r = await fetchGemini(p, m);
-                if (r && !r.startsWith("Error")) { WORKING_MODEL = m; return r; }
+        // --- MOTOR IA ROBUSTO (REINTENTOS) ---
+        async function llamarIA(p, retries = 2) {
+            try {
+                if (WORKING_MODEL) return await fetchGemini(p, WORKING_MODEL);
+                for (let m of MODEL_CANDIDATES) {
+                    const r = await fetchGemini(p, m);
+                    if (r && !r.startsWith("Error")) { WORKING_MODEL = m; return r; }
+                }
+                throw new Error("Todos los modelos fallaron");
+            } catch (e) {
+                if(retries > 0) {
+                    console.warn("Reintentando IA...");
+                    await new Promise(r => setTimeout(r, 2000)); // Esperar 2s
+                    return llamarIA(p, retries - 1);
+                }
+                return "Error: Servicio saturado. Intente en unos segundos.";
             }
-            return null;
         }
 
         async function fetchGemini(prompt, modelo) {
@@ -360,27 +295,44 @@ html_template = """
                     method: 'POST', headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({ contents: [{ parts: [{ text: prompt }, { inline_data: { mime_type: "application/pdf", data: globalPdfBase64 } }] }] })
                 });
+                if (r.status === 429) return "Error 429"; // Rate Limit Hit
                 const d = await r.json();
-                if(d.error) return "Error";
+                if(d.error) return "Error: " + d.error.message;
                 return d.candidates[0].content.parts[0].text;
-            } catch(e) { return "Error"; }
+            } catch(e) { return "Error Red"; }
         }
 
         function limpiarTexto(t) { return t.replace(/```html|```/gi, "").trim(); }
         function limpiarMermaid(t) { let l = t.replace(/```mermaid|```/gi, ""); const i = l.indexOf("graph TD"); if(i !== -1) l = l.substring(i); return l.trim(); }
 
+        // --- CHAT FIX ---
         async function enviarMensaje() {
             const i = document.getElementById('user-input'), h = document.getElementById('chat-history');
             const t = i.value; if(!t) return;
-            h.innerHTML += `<div class="msg user">${t}</div>`; i.value=""; h.scrollTop = h.scrollHeight;
-            const r = await llamarIA(`Respuesta técnica: ${t}`);
-            h.innerHTML += `<div class="msg ai">${r ? marked.parse(limpiarTexto(r)) : "Error"}</div>`;
+            
+            // UI Update Usuario
+            h.innerHTML += `<div class="msg user">${t}</div>`; 
+            i.value=""; h.scrollTop = h.scrollHeight;
+            
+            // Loading Indicator
+            const loadingId = "loading-" + Date.now();
+            h.innerHTML += `<div id="${loadingId}" class="msg ai loading">Escribiendo...</div>`;
+            h.scrollTop = h.scrollHeight;
+
+            // Llamada IA
+            const r = await llamarIA(`Actúa como experto médico. Responde brevemente: ${t}`);
+            
+            // Remove Loading
+            document.getElementById(loadingId).remove();
+            
+            // UI Update IA
+            const content = r && !r.startsWith("Error") ? marked.parse(limpiarTexto(r)) : `<span style="color:red">${r}</span>`;
+            h.innerHTML += `<div class="msg ai">${content}</div>`;
             h.scrollTop = h.scrollHeight;
         }
 
         function descargarPoster() {
             const el = document.getElementById('infografia-visual-container');
-            // Usamos windowWidth para asegurar que capture todo aunque haya scroll
             html2canvas(el, { scale: 3, windowWidth: el.scrollWidth, windowHeight: el.scrollHeight, backgroundColor: "#ffffff" }).then(canvas => {
                 const a = document.createElement('a'); a.download = 'Infografia_Medica_Pro.png'; a.href = canvas.toDataURL('image/png'); a.click();
             });
