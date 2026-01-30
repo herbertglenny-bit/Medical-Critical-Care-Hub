@@ -8,12 +8,12 @@ from datetime import datetime
 import google.generativeai as genai
 import time
 
-# 1. CONFIGURACIÓN DE PÁGINA
+# 1. CONFIGURACIÓN
 st.set_page_config(page_title="NanoBanana UCI Station", layout="wide", initial_sidebar_state="expanded")
 
-# 2. FUNCIONES DE LIMPIEZA Y SEGURIDAD
+# 2. FUNCIONES DE LIMPIEZA QUIRÚRGICA (ELIMINAN EL RUIDO)
 def clean_analysis_text(text):
-    """Elimina preámbulos y limpia símbolos de formato técnico."""
+    """Limpia el análisis de preámbulos y basura técnica."""
     text = text.replace("```markdown", "").replace("```", "")
     lines = text.split('\n')
     cleaned_lines = []
@@ -21,13 +21,12 @@ def clean_analysis_text(text):
     for line in lines:
         if line.strip().startswith('#'): found_start = True
         if found_start:
-            # Limpiar caracteres de escape que ensucian valores médicos
-            line = line.replace('\\%', '%').replace('$', '').replace('\\_', '_').replace('\\>', '>').replace('\\pm', '+/-').replace('\\text', '')
+            line = line.replace('\\%', '%').replace('$', '').replace('\\_', '_').replace('\\>', '>').replace('\\pm', '+/-')
             cleaned_lines.append(line)
     return '\n'.join(cleaned_lines).strip()
 
 def clean_html_output(text):
-    """Aísla el bloque HTML del póster para evitar texto basura."""
+    """Extrae exclusivamente el bloque HTML del póster."""
     text = text.replace("```html", "").replace("```", "")
     start_match = re.search(r'<div class="poster-header"', text)
     if start_match: text = text[start_match.start():]
@@ -36,12 +35,16 @@ def clean_html_output(text):
     return text.strip()
 
 def clean_mermaid_code(text):
-    """Asegura que el diagrama sea válido para Mermaid."""
+    """Elimina introducciones de texto y extrae solo el código del diagrama."""
     text = text.replace("```mermaid", "").replace("```", "")
-    text = re.sub(r'^mermaid\s+', '', text, flags=re.IGNORECASE)
+    # Buscamos donde empieza realmente el gráfico (graph o flowchart)
+    match = re.search(r'(graph|flowchart)\s+[A-Z]{2}', text, re.IGNORECASE)
+    if match:
+        text = text[match.start():]
+    # Cortamos en el último cierre de corchete o paréntesis si hay basura después
     return text.strip()
 
-# 3. SEGURIDAD Y CONEXIÓN IA
+# 3. SEGURIDAD API
 try:
     API_KEY = st.secrets["GEMINI_API_KEY"]
     genai.configure(api_key=API_KEY)
@@ -49,20 +52,19 @@ except (FileNotFoundError, KeyError):
     st.error("⚠️ Error: Falta 'GEMINI_API_KEY' en Secrets.")
     st.stop()
 
-# 4. MOTOR DE SELECCIÓN DE MODELO
+# 4. MOTOR DE IA
 def get_valid_models():
     try:
         all_models = list(genai.list_models())
         valid_models = [m.name for m in all_models if 'generateContent' in m.supported_generation_methods]
         priority = sorted(valid_models, key=lambda x: ('flash' not in x, '2.5' not in x, '2.0' not in x))
         return priority if priority else ["models/gemini-1.5-flash"]
-    except:
-        return ["models/gemini-1.5-flash"]
+    except: return ["models/gemini-1.5-flash"]
 
 REAL_MODELS_PYTHON = get_valid_models()
 REAL_MODELS_JS = [m.replace("models/", "") for m in REAL_MODELS_PYTHON]
 
-# 5. BASE DE DATOS (SQLITE)
+# 5. BASE DE DATOS
 def init_db():
     conn = sqlite3.connect('guias_medicas.db')
     c = conn.cursor()
@@ -102,7 +104,7 @@ def borrar_guia(id_guia):
 
 init_db()
 
-# 6. INTERFAZ VISUAL (DISEÑO UCI)
+# 6. INTERFAZ VISUAL MAESTRA (V61)
 html_template = """
 <!DOCTYPE html>
 <html lang="es">
@@ -117,30 +119,23 @@ html_template = """
         * { box-sizing: border-box; }
         body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; font-family: 'Segoe UI', system-ui, sans-serif; background: #000; color: #fff; }
         .main-container { display: flex; width: 100vw; height: 100vh; }
-        
-        /* IZQUIERDA: PDF */
         .pdf-section { width: 50%; height: 100%; display: flex; flex-direction: column; border-right: 2px solid #333; background: #1a1a1a; }
         .pdf-toolbar { height: 50px; background: #000; display: flex; align-items: center; justify-content: center; gap: 20px; }
         .pdf-scroll-container { flex: 1; overflow: auto; padding: 20px; text-align: center; }
         .pdf-page-canvas { display: inline-block; box-shadow: 0 0 40px rgba(0,0,0,0.7); margin-bottom: 20px; background: white; }
-
-        /* DERECHA: ANALISIS Y POSTER */
         .right-panel { width: 50%; height: 100%; display: flex; flex-direction: column; background: #fdfdfd; color: #000; }
         .tabs-header { height: 55px; background: #fff; border-bottom: 4px solid #ffd600; display: flex; }
-        .tab-btn { flex: 1; border: none; background: transparent; cursor: pointer; font-weight: 900; color: #666; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; }
+        .tab-btn { flex: 1; border: none; background: transparent; cursor: pointer; font-weight: 900; color: #666; font-size: 11px; text-transform: uppercase; }
         .tab-btn.active { background: #ffd600; color: #000; }
-        
+        .content-area { flex: 1; overflow: hidden; display: flex; flex-direction: column; }
         .tab-content { display: none; width: 100%; height: 100%; overflow-y: auto; }
         .tab-content.active { display: block; }
-        
-        .markdown-wrapper { padding: 40px; max-width: 800px; margin: auto; }
-        .markdown-body h1 { border-left: 10px solid #ffd600; padding-left: 15px; font-size: 28px; }
-        .markdown-body h2 { background: #fff9c4; padding: 8px; border-radius: 4px; font-size: 18px; margin-top: 25px; }
-
-        /* POSTER VISUAL UCI */
-        #infografia-wrapper { padding: 30px; background: #ddd; text-align: center; }
+        .markdown-wrapper { padding: 40px; max-width: 850px; margin: auto; }
+        .markdown-body h1 { border-left: 10px solid #ffd600; padding-left: 15px; font-size: 30px; }
+        .markdown-body h2 { background: #fff9c4; padding: 8px; border-radius: 4px; margin-top: 25px; font-size: 18px; }
+        #infografia-wrapper { padding: 30px; background: #ccc; text-align: center; }
         #infografia-visual-container { width: 950px; margin: 0 auto; background: white; box-shadow: 0 40px 80px rgba(0,0,0,0.3); border-radius: 12px; overflow: hidden; text-align: left; display: inline-block; border: 2px solid #000; }
-        .poster-header { background: #000; color: #ffd600; padding: 40px; border-bottom: 10px solid #ffd600; }
+        .poster-header { background: #000; color: #ffd600; padding: 40px; border-bottom: 12px solid #ffd600; }
         .poster-title { font-size: 38px; font-weight: 900; text-transform: uppercase; margin: 0; line-height: 1; }
         .poster-meta { margin-top: 10px; font-size: 14px; color: #fff; font-weight: 700; opacity: 0.7; }
         .poster-body { padding: 35px; }
@@ -158,10 +153,8 @@ html_template = """
         .metric-val { display: block; font-size: 26px; font-weight: 900; }
         .metric-lbl { font-size: 10px; font-weight: 800; color: #444; text-transform: uppercase; }
         .poster-mermaid { margin-top: 20px; background: #fff; border: 1px solid #000; border-radius: 10px; padding: 20px; text-align: center; }
-
-        /* CHAT */
-        #tab-chat { display: none; width: 100%; height: 100%; flex-direction: column; background: #f0f2f5; }
-        .chat-input-box { height: 80px; padding: 15px 25px; background: #fff; border-bottom: 1px solid #ddd; display: flex; gap: 10px; align-items: center; }
+        #tab-chat { display: none; width: 100%; height: 100%; flex-direction: column; background: #f4f7f6; }
+        .chat-input-box { height: 80px; padding: 20px; background: #fff; border-bottom: 1px solid #ddd; display: flex; gap: 10px; }
         #chat-history { flex: 1; overflow-y: auto; padding: 25px; display: flex; flex-direction: column; gap: 12px; }
         .msg { padding: 12px 18px; border-radius: 15px; font-size: 14px; max-width: 80%; border: 1px solid #ddd; }
         .msg.user { background: #000; color: #ffd600; align-self: flex-end; }
@@ -217,9 +210,9 @@ html_template = """
                             if(target) { 
                                 try {
                                     target.innerHTML = `<pre class="mermaid">${DATA_MERMAID}</pre>`; 
-                                    mermaid.initialize({ startOnLoad: false, theme: 'neutral' });
+                                    mermaid.initialize({ startOnLoad: false, theme: 'neutral', securityLevel: 'loose' });
                                     mermaid.run(); 
-                                } catch(e) { target.innerHTML = "<p>Cargando algoritmo...</p>"; }
+                                } catch(e) { target.innerHTML = "<p>Error en algoritmo clínico.</p>"; }
                             } 
                         }, 800);
                         document.getElementById('btn-save-img').style.display = 'block';
@@ -261,7 +254,7 @@ html_template = """
             const t = i.value; if(!t) return;
             h.innerHTML += `<div class="msg user">${t}</div>`; i.value=""; 
             const lid = "l"+Date.now();
-            h.innerHTML += `<div id="${lid}" class="msg ai">Consultando evidencia...</div>`;
+            h.innerHTML += `<div id="${lid}" class="msg ai">Consultando guía clínica...</div>`;
             h.scrollTop = h.scrollHeight;
             chatLog.push({role: "user", text: t});
             let ctx = chatLog.map(e => `${e.role}: ${e.text}`).join('\\n');
@@ -290,7 +283,7 @@ html_template = """
 </html>
 """
 
-# 7. LÓGICA DE PROCESAMIENTO
+# 7. PROCESAMIENTO STREAMLIT
 with st.sidebar:
     st.title("🍌 NanoBanana UCI")
     modo_admin = st.checkbox("⚙️ Modo Administrador")
@@ -305,10 +298,10 @@ with st.sidebar:
                 borrar_guia(g_id); st.rerun()
 
 if modo_admin:
-    st.title("Administrador de Sesiones")
+    st.title("Administrador de Guías")
     file = st.file_uploader("Subir GPC (PDF)", type="pdf")
     if file and st.button("🚀 TRANSFORMAR GUÍA"):
-        with st.spinner("Analizando técnicamente la guía..."):
+        with st.spinner("Analizando y diseñando para UCI..."):
             pdf_bytes = file.read()
             def gen(p):
                 for m in REAL_MODELS_PYTHON:
@@ -316,45 +309,50 @@ if modo_admin:
                     except: continue
                 return ""
 
-            # PROMPT 1: JEFE DE SERVICIO
+            # PROMPT 1: ANÁLISIS TÉCNICO (Jefe de Servicio)
             p1 = """
-            # ROL: Jefe de Servicio de Medicina Intensiva y Director de Formación.
-            # IDIOMA: ESPAÑOL.
-            # INSTRUCCIÓN CRÍTICA: Empieza directo con #. NADA DE LATEX.
+            # ROL: Jefe de Servicio de Medicina Intensiva, experto en MBE.
+            # IDIOMA: ESPAÑOL (OBLIGATORIO).
+            # INSTRUCCIÓN CRÍTICA: EMPIEZA DIRECTO CON #. USA TEXTO PLANO (NADA DE LATEX).
             # TAREAS:
-            1. Resumen Ejecutivo y Rigor: Metodología y Paciente Tipo UCI.
+            1. Resumen Ejecutivo y Rigor (Metodología y Paciente Tipo UCI).
             2. Análisis Delta: Ruptura con la práctica anterior (Novedades de alto impacto, Des-implementación/Lo que NO hacer, Cambios en Umbrales exactos).
-            3. Guía Operativa Bedside (Checklist): Algoritmo de decisiones y Bundles audidatbles.
-            4. El Rincón del Residente: Racional fisiopatológico, Trial Pivot (estudio RCT clave), Flashcards de guardia, Mini-caso de 3 líneas.
+            3. Guía Operativa Bedside (Algoritmo de decisiones y Bundles audidatbles).
+            4. El Rincón del Residente (Fisiopatología, Trial Pivot/Estudio RCT clave, Flashcards de guardia, Mini-caso evaluativo).
             5. Áreas de Incertidumbre y Juicio Clínico.
             """
             analisis = clean_analysis_text(gen(p1))
             
             # PROMPT 2: INFOGRAFÍA VISUAL
             p2 = """
-            # ROL: Diseñador Visual UCI.
+            # ROL: Diseñador de Infografías Médicas UCI.
             # IDIOMA: ESPAÑOL.
             # OBJETIVO: Genera SOLO código HTML para un Póster visual atractivo.
-            # REGLA: Usa EMOJIS relevantes (⛔, ✅, 💊, 🩺, ⚠️). NADA DE LATEX.
-            # ESTRUCTURA HTML:
+            # REGLA VISUAL: Usa EMOJIS relevantes (⛔, ✅, 💊, 🩺, ⚠️). NADA DE LATEX.
+            # ESTRUCTURA HTML (Usa estas clases):
             - poster-header (poster-title, poster-meta)
             - poster-body (section-title: usa emojis 🚦, 🔢, 🔄, 🧠)
             - traffic-container (tc-stop: Rojo, tc-wait: Amarillo, tc-go: Verde)
-            - metrics-grid (metric-card -> metric-val, metric-lbl) -> "The Big Numbers"
+            - metrics-grid (metric-card -> metric-val, metric-lbl)
             - ALGORITMO: <div id="mermaid-placeholder" class="poster-mermaid"></div>
             - SECCIÓN RESUMEN: Take Home Messages.
             """
             html = clean_html_output(gen(p2))
             
-            # PROMPT 3: MERMAID
-            p3 = "Genera un diagrama Mermaid 'graph TD' en ESPAÑOL. Resume el algoritmo principal. REGLA: TODOS los nodos entre comillas dobles. Máximo 6 pasos. Solo código."
+            # PROMPT 3: MERMAID (BLINDADO)
+            p3 = """
+            Genera un diagrama Mermaid 'graph TD' en ESPAÑOL. Resume el flujo clínico principal. 
+            REGLA DE ORO: TODOS los nombres de los nodos deben ir entre comillas dobles obligatoriamente. 
+            Ejemplo: A["💊 Iniciar fármaco"] --> B["⚠️ Evaluar TAM"]. 
+            No añadas ningún texto antes ni después del código.
+            """
             mermaid = clean_mermaid_code(gen(p3))
             
             st.session_state['temp'] = {'titulo': file.name, 'bytes': pdf_bytes, 'analisis': analisis, 'html': html, 'mermaid': mermaid}
             st.success("Procesado con éxito.")
 
     if 'temp' in st.session_state:
-        if st.button("💾 GUARDAR"):
+        if st.button("💾 GUARDAR EN BIBLIOTECA"):
             guardar_guia(st.session_state['temp']['titulo'], st.session_state['temp']['bytes'], st.session_state['temp']['analisis'], st.session_state['temp']['html'], st.session_state['temp']['mermaid'])
             del st.session_state['temp']; st.rerun()
 
@@ -370,3 +368,6 @@ else:
             f_html = f_html.replace("__INFO_DATA__", json.dumps(guia[5]))
             f_html = f_html.replace("__MERMAID_DATA__", json.dumps(guia[6]))
             components.html(f_html, height=1200, scrolling=False)
+    else:
+        st.title("Handover Médico NanoBanana")
+        st.info("👈 Selecciona una guía clínica en el menú lateral.")
