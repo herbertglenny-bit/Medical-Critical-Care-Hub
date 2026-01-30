@@ -8,12 +8,12 @@ from datetime import datetime
 import google.generativeai as genai
 import time
 
-# 1. CONFIGURACIÓN
-st.set_page_config(page_title="NanoBanana UCI Station", layout="wide", initial_sidebar_state="expanded")
+# 1. CONFIGURACIÓN DE PÁGINA (Barra lateral se oculta si hay una guía activa)
+st_state = "collapsed" if 'active_guide_id' in st.session_state else "expanded"
+st.set_page_config(page_title="NanoBanana UCI Station", layout="wide", initial_sidebar_state=st_state)
 
-# 2. FUNCIONES DE LIMPIEZA QUIRÚRGICA (ELIMINAN EL RUIDO)
+# 2. FUNCIONES DE LIMPIEZA TÉCNICA
 def clean_analysis_text(text):
-    """Limpia el análisis de preámbulos y basura técnica."""
     text = text.replace("```markdown", "").replace("```", "")
     lines = text.split('\n')
     cleaned_lines = []
@@ -26,7 +26,6 @@ def clean_analysis_text(text):
     return '\n'.join(cleaned_lines).strip()
 
 def clean_html_output(text):
-    """Extrae exclusivamente el bloque HTML del póster."""
     text = text.replace("```html", "").replace("```", "")
     start_match = re.search(r'<div class="poster-header"', text)
     if start_match: text = text[start_match.start():]
@@ -35,13 +34,9 @@ def clean_html_output(text):
     return text.strip()
 
 def clean_mermaid_code(text):
-    """Elimina introducciones de texto y extrae solo el código del diagrama."""
     text = text.replace("```mermaid", "").replace("```", "")
-    # Buscamos donde empieza realmente el gráfico (graph o flowchart)
     match = re.search(r'(graph|flowchart)\s+[A-Z]{2}', text, re.IGNORECASE)
-    if match:
-        text = text[match.start():]
-    # Cortamos en el último cierre de corchete o paréntesis si hay basura después
+    if match: text = text[match.start():]
     return text.strip()
 
 # 3. SEGURIDAD API
@@ -49,7 +44,7 @@ try:
     API_KEY = st.secrets["GEMINI_API_KEY"]
     genai.configure(api_key=API_KEY)
 except (FileNotFoundError, KeyError):
-    st.error("⚠️ Error: Falta 'GEMINI_API_KEY' en Secrets.")
+    st.error("⚠️ Falta la clave API.")
     st.stop()
 
 # 4. MOTOR DE IA
@@ -104,7 +99,7 @@ def borrar_guia(id_guia):
 
 init_db()
 
-# 6. INTERFAZ VISUAL MAESTRA (V61)
+# 6. HTML MAESTRO (VISUALIZACIÓN OPTIMIZADA)
 html_template = """
 <!DOCTYPE html>
 <html lang="es">
@@ -117,27 +112,29 @@ html_template = """
     <script>pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';</script>
     <style>
         * { box-sizing: border-box; }
-        body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; font-family: 'Segoe UI', system-ui, sans-serif; background: #000; color: #fff; }
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; font-family: 'Segoe UI', system-ui, sans-serif; background: #000; }
         .main-container { display: flex; width: 100vw; height: 100vh; }
+        
         .pdf-section { width: 50%; height: 100%; display: flex; flex-direction: column; border-right: 2px solid #333; background: #1a1a1a; }
         .pdf-toolbar { height: 50px; background: #000; display: flex; align-items: center; justify-content: center; gap: 20px; }
         .pdf-scroll-container { flex: 1; overflow: auto; padding: 20px; text-align: center; }
         .pdf-page-canvas { display: inline-block; box-shadow: 0 0 40px rgba(0,0,0,0.7); margin-bottom: 20px; background: white; }
+
         .right-panel { width: 50%; height: 100%; display: flex; flex-direction: column; background: #fdfdfd; color: #000; }
         .tabs-header { height: 55px; background: #fff; border-bottom: 4px solid #ffd600; display: flex; }
         .tab-btn { flex: 1; border: none; background: transparent; cursor: pointer; font-weight: 900; color: #666; font-size: 11px; text-transform: uppercase; }
         .tab-btn.active { background: #ffd600; color: #000; }
-        .content-area { flex: 1; overflow: hidden; display: flex; flex-direction: column; }
+        
         .tab-content { display: none; width: 100%; height: 100%; overflow-y: auto; }
         .tab-content.active { display: block; }
-        .markdown-wrapper { padding: 40px; max-width: 850px; margin: auto; }
-        .markdown-body h1 { border-left: 10px solid #ffd600; padding-left: 15px; font-size: 30px; }
-        .markdown-body h2 { background: #fff9c4; padding: 8px; border-radius: 4px; margin-top: 25px; font-size: 18px; }
+        
+        .markdown-wrapper { padding: 40px; max-width: 850px; margin: auto; color: #222; }
+        .markdown-body h1 { border-left: 10px solid #ffd600; padding-left: 15px; font-size: 28px; }
+        
         #infografia-wrapper { padding: 30px; background: #ccc; text-align: center; }
-        #infografia-visual-container { width: 950px; margin: 0 auto; background: white; box-shadow: 0 40px 80px rgba(0,0,0,0.3); border-radius: 12px; overflow: hidden; text-align: left; display: inline-block; border: 2px solid #000; }
+        #infografia-visual-container { width: 950px; margin: 0 auto; background: white; box-shadow: 0 40px 80px rgba(0,0,0,0.4); border-radius: 12px; overflow: hidden; text-align: left; display: inline-block; border: 2px solid #000; }
         .poster-header { background: #000; color: #ffd600; padding: 40px; border-bottom: 12px solid #ffd600; }
         .poster-title { font-size: 38px; font-weight: 900; text-transform: uppercase; margin: 0; line-height: 1; }
-        .poster-meta { margin-top: 10px; font-size: 14px; color: #fff; font-weight: 700; opacity: 0.7; }
         .poster-body { padding: 35px; }
         .section-title { font-size: 22px; font-weight: 900; background: #000; color: #ffd600; display: inline-block; padding: 5px 20px; margin: 25px 0 15px 0; border-radius: 4px; }
         .traffic-container { display: flex; gap: 15px; }
@@ -146,13 +143,11 @@ html_template = """
         .tc-stop .traffic-title { background: #d32f2f; }
         .tc-wait .traffic-title { background: #f57c00; }
         .tc-go .traffic-title { background: #2e7d32; }
-        .traffic-col ul { padding: 15px; font-size: 13px; list-style: none; margin: 0; }
-        .traffic-col li { margin-bottom: 8px; border-bottom: 1px solid #eee; padding-bottom: 4px; }
         .metrics-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
         .metric-card { background: #f5f5f5; border: 2px solid #000; padding: 15px 10px; text-align: center; border-radius: 12px; box-shadow: 4px 4px 0px #ffd600; }
         .metric-val { display: block; font-size: 26px; font-weight: 900; }
-        .metric-lbl { font-size: 10px; font-weight: 800; color: #444; text-transform: uppercase; }
         .poster-mermaid { margin-top: 20px; background: #fff; border: 1px solid #000; border-radius: 10px; padding: 20px; text-align: center; }
+
         #tab-chat { display: none; width: 100%; height: 100%; flex-direction: column; background: #f4f7f6; }
         .chat-input-box { height: 80px; padding: 20px; background: #fff; border-bottom: 1px solid #ddd; display: flex; gap: 10px; }
         #chat-history { flex: 1; overflow-y: auto; padding: 25px; display: flex; flex-direction: column; gap: 12px; }
@@ -183,11 +178,11 @@ html_template = """
                 <div id="tab-analisis" class="tab-content active"><div class="markdown-wrapper"><div id="analisis-content" class="markdown-body"></div></div></div>
                 <div id="tab-infografia" class="tab-content"><div id="infografia-wrapper"><div id="infografia-visual-container"></div></div></div>
                 <div id="tab-chat" class="tab-content">
+                    <div id="chat-history"></div>
                     <div class="chat-input-box">
-                        <input type="text" id="user-input" placeholder="Pregunta técnica sobre el PDF..." style="flex:1; padding:10px; border-radius:20px; border:1px solid #ddd;">
+                        <input type="text" id="user-input" placeholder="Pregunta técnica sobre el PDF..." style="flex:1; padding:10px; border-radius:20px; border:1px solid #ddd;" onkeypress="if(event.key==='Enter') enviarMensaje()">
                         <button onclick="enviarMensaje()" style="background:#000; color:#ffd600; padding:10px 20px; border-radius:20px;">ENVIAR</button>
                     </div>
-                    <div id="chat-history"></div>
                 </div>
             </div>
         </div>
@@ -210,9 +205,9 @@ html_template = """
                             if(target) { 
                                 try {
                                     target.innerHTML = `<pre class="mermaid">${DATA_MERMAID}</pre>`; 
-                                    mermaid.initialize({ startOnLoad: false, theme: 'neutral', securityLevel: 'loose' });
+                                    mermaid.initialize({ startOnLoad: false, theme: 'neutral' });
                                     mermaid.run(); 
-                                } catch(e) { target.innerHTML = "<p>Error en algoritmo clínico.</p>"; }
+                                } catch(e) { target.innerHTML = "<p>Algoritmo clínico en renderizado...</p>"; }
                             } 
                         }, 800);
                         document.getElementById('btn-save-img').style.display = 'block';
@@ -254,7 +249,7 @@ html_template = """
             const t = i.value; if(!t) return;
             h.innerHTML += `<div class="msg user">${t}</div>`; i.value=""; 
             const lid = "l"+Date.now();
-            h.innerHTML += `<div id="${lid}" class="msg ai">Consultando guía clínica...</div>`;
+            h.innerHTML += `<div id="${lid}" class="msg ai">Consultando evidencia...</div>`;
             h.scrollTop = h.scrollHeight;
             chatLog.push({role: "user", text: t});
             let ctx = chatLog.map(e => `${e.role}: ${e.text}`).join('\\n');
@@ -275,7 +270,7 @@ html_template = """
 
         function descargarPoster() {
             html2canvas(document.getElementById('infografia-visual-container'), { scale: 3, useCORS: true }).then(c => {
-                const a = document.createElement('a'); a.download = 'Handover_NanoBanana.png'; a.href = c.toDataURL(); a.click();
+                const a = document.createElement('a'); a.download = 'NanoBanana_UCI.png'; a.href = c.toDataURL(); a.click();
             });
         }
     </script>
@@ -283,9 +278,12 @@ html_template = """
 </html>
 """
 
-# 7. PROCESAMIENTO STREAMLIT
+# --- SIDEBAR ---
 with st.sidebar:
-    st.title("🍌 NanoBanana UCI")
+    st.title("🍌 NanoBanana")
+    # BOTÓN PARA REABRIR BARRA SI SE DESEA
+    if st.button("🔄 Refrescar Lista"): st.rerun()
+    
     modo_admin = st.checkbox("⚙️ Modo Administrador")
     st.divider()
     guias = obtener_guias()
@@ -297,11 +295,12 @@ with st.sidebar:
             if st.button("❌", key=f"d_{g_id}"):
                 borrar_guia(g_id); st.rerun()
 
+# --- LÓGICA DE PROCESAMIENTO ---
 if modo_admin:
-    st.title("Administrador de Guías")
-    file = st.file_uploader("Subir GPC (PDF)", type="pdf")
-    if file and st.button("🚀 TRANSFORMAR GUÍA"):
-        with st.spinner("Analizando y diseñando para UCI..."):
+    st.title("Carga y Análisis de Guías")
+    file = st.file_uploader("Subir PDF de Guía Clínica", type="pdf")
+    if file and st.button("🚀 TRANSFORMAR A FORMATO UCI"):
+        with st.spinner("Analizando contenido..."):
             pdf_bytes = file.read()
             def gen(p):
                 for m in REAL_MODELS_PYTHON:
@@ -309,7 +308,7 @@ if modo_admin:
                     except: continue
                 return ""
 
-            # PROMPT 1: ANÁLISIS TÉCNICO (Jefe de Servicio)
+            # PROMPT 1: ANÁLISIS JEFE DE SERVICIO (ESPAÑOL)
             p1 = """
             # ROL: Jefe de Servicio de Medicina Intensiva, experto en MBE.
             # IDIOMA: ESPAÑOL (OBLIGATORIO).
@@ -317,7 +316,7 @@ if modo_admin:
             # TAREAS:
             1. Resumen Ejecutivo y Rigor (Metodología y Paciente Tipo UCI).
             2. Análisis Delta: Ruptura con la práctica anterior (Novedades de alto impacto, Des-implementación/Lo que NO hacer, Cambios en Umbrales exactos).
-            3. Guía Operativa Bedside (Algoritmo de decisiones y Bundles audidatbles).
+            3. Guía Operativa Bedside (Checklist): Algoritmo de decisiones y Bundles audidatbles.
             4. El Rincón del Residente (Fisiopatología, Trial Pivot/Estudio RCT clave, Flashcards de guardia, Mini-caso evaluativo).
             5. Áreas de Incertidumbre y Juicio Clínico.
             """
@@ -326,30 +325,25 @@ if modo_admin:
             # PROMPT 2: INFOGRAFÍA VISUAL
             p2 = """
             # ROL: Diseñador de Infografías Médicas UCI.
-            # IDIOMA: ESPAÑOL.
-            # OBJETIVO: Genera SOLO código HTML para un Póster visual atractivo.
-            # REGLA VISUAL: Usa EMOJIS relevantes (⛔, ✅, 💊, 🩺, ⚠️). NADA DE LATEX.
-            # ESTRUCTURA HTML (Usa estas clases):
+            # IDIOMA: ESPAÑOL (OBLIGATORIO).
+            # OBJETIVO: Genera SOLO código HTML para un Póster visual de alto impacto 'NanoBanana Style'.
+            # REGLA VISUAL: Usa EMOJIS relevantes (⛔, ✅, 💊, 🩺, ⚠️) para que sea esquemático y atractivo. NADA DE LATEX.
+            # ESTRUCTURA HTML (Obligatorio usar estas clases):
             - poster-header (poster-title, poster-meta)
             - poster-body (section-title: usa emojis 🚦, 🔢, 🔄, 🧠)
             - traffic-container (tc-stop: Rojo, tc-wait: Amarillo, tc-go: Verde)
-            - metrics-grid (metric-card -> metric-val, metric-lbl)
+            - metrics-grid (metric-card -> metric-val, metric-lbl) -> "The Big Numbers"
             - ALGORITMO: <div id="mermaid-placeholder" class="poster-mermaid"></div>
             - SECCIÓN RESUMEN: Take Home Messages.
             """
             html = clean_html_output(gen(p2))
             
-            # PROMPT 3: MERMAID (BLINDADO)
-            p3 = """
-            Genera un diagrama Mermaid 'graph TD' en ESPAÑOL. Resume el flujo clínico principal. 
-            REGLA DE ORO: TODOS los nombres de los nodos deben ir entre comillas dobles obligatoriamente. 
-            Ejemplo: A["💊 Iniciar fármaco"] --> B["⚠️ Evaluar TAM"]. 
-            No añadas ningún texto antes ni después del código.
-            """
+            # PROMPT 3: MERMAID
+            p3 = "Genera un diagrama Mermaid 'graph TD' en ESPAÑOL. Resume el algoritmo principal. REGLA: TODOS los nodos entre comillas dobles. Máximo 6 pasos. Solo código."
             mermaid = clean_mermaid_code(gen(p3))
             
             st.session_state['temp'] = {'titulo': file.name, 'bytes': pdf_bytes, 'analisis': analisis, 'html': html, 'mermaid': mermaid}
-            st.success("Procesado con éxito.")
+            st.success("Análisis clínico y diseño de póster completado.")
 
     if 'temp' in st.session_state:
         if st.button("💾 GUARDAR EN BIBLIOTECA"):
@@ -370,4 +364,4 @@ else:
             components.html(f_html, height=1200, scrolling=False)
     else:
         st.title("Handover Médico NanoBanana")
-        st.info("👈 Selecciona una guía clínica en el menú lateral.")
+        st.info("👈 Selecciona una guía en el menú lateral para abrir el análisis.")
