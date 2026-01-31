@@ -10,31 +10,23 @@ import google.generativeai as genai
 # --- 1. CONFIGURACIÓN ---
 st.set_page_config(page_title="NanoBanana UCI Station", layout="wide", initial_sidebar_state="collapsed")
 
-# --- 2. MOTOR IA (AUTODETECCIÓN DINÁMICA) ---
-def inicializar_ia():
+# --- 2. MOTOR IA (SISTEMA DE AUTODETECCIÓN) ---
+def get_ia_engine():
     try:
         if "GEMINI_API_KEY" not in st.secrets:
-            st.error("⚠️ Configura la clave en Secrets.")
-            return None, None
-        
+            st.error("⚠️ Configura GEMINI_API_KEY en Secrets.")
+            st.stop()
         genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-        
-        # INTERROGACIÓN AL SERVIDOR: Buscamos qué modelos tienes permitidos realmente
-        modelos_permitidos = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
-        
-        # Prioridad: 1. Flash 1.5, 2. Flash 2.0 (si existiera), 3. Cualquier Flash
-        seleccion = next((m for m in modelos_permitidos if "1.5-flash" in m), None)
-        if not seleccion:
-            seleccion = next((m for m in modelos_permitidos if "flash" in m), modelos_permitidos[0])
-            
-        return genai.GenerativeModel(seleccion), seleccion
+        valid_models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
+        name = next((m for m in valid_models if "1.5-flash" in m), valid_models[0])
+        return genai.GenerativeModel(model_name=name), name
     except Exception as e:
         st.error(f"Error de conexión con Google: {e}")
         return None, None
 
-model_ia, nombre_exacto_modelo = inicializar_ia()
+model_ia, active_model_name = get_ia_engine()
 
-# --- 3. BASE DE DATOS (ESTRUCTURA ROBUSTA) ---
+# --- 3. BASE DE DATOS Y LIMPIEZA ---
 def get_db():
     conn = sqlite3.connect('guias_medicas.db', check_same_thread=False)
     conn.row_factory = sqlite3.Row 
@@ -46,9 +38,16 @@ def init_db():
                         (id INTEGER PRIMARY KEY AUTOINCREMENT, 
                          titulo TEXT, fecha TEXT, pdf_blob BLOB, 
                          analisis_md TEXT, infografia_html TEXT)''')
+
+def clean_filename(filename):
+    # Quita .pdf, cambia - y _ por espacios y capitaliza
+    name = re.sub(r'\.[Pp][Dd][Ff]$', '', filename)
+    name = name.replace('-', ' ').replace('_', ' ')
+    return name.title()
+
 init_db()
 
-# --- 4. PLANTILLA HTML V74 (VISOR Y CHAT SINCRONIZADOS) ---
+# --- 4. PLANTILLA HTML MAESTRA V75 (SCROLL HORIZONTAL Y PÓSTER PRO) ---
 html_template = """
 <!DOCTYPE html>
 <html lang="es">
@@ -59,19 +58,31 @@ html_template = """
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <script>pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';</script>
     <style>
-        :root { --banana: #ffd600; }
+        :root { --banana: #ffd600; --dark: #323639; }
         body, html { margin:0; padding:0; height:100vh; font-family:'Inter', sans-serif; background:#fff; overflow:hidden; }
         .main { display:flex; height:100vh; width:100vw; }
-        .pdf-side { width:50%; height:100%; display:flex; flex-direction:column; background:#525659; border-right:2px solid #333; }
-        .toolbar { height:50px; background:#323639; display:flex; align-items:center; justify-content:center; gap:20px; color:white; }
+        
+        /* VISOR PDF CORREGIDO (SCROLL HORIZONTAL) */
+        .pdf-side { width:50%; height:100%; display:flex; flex-direction:column; background:#525659; border-right:2px solid #000; }
+        .toolbar { height:50px; background:var(--dark); display:flex; align-items:center; justify-content:center; gap:20px; color:white; }
         .viewport { flex:1; overflow:auto; padding:20px; display:flex; flex-direction:column; align-items:center; }
+        .pdf-container-inner { min-width: fit-content; display: flex; flex-direction: column; align-items: center; }
         canvas { box-shadow:0 10px 30px rgba(0,0,0,0.5); margin-bottom:20px; background:white; }
+
+        /* PANELES DE DATOS */
         .data-side { width:50%; height:100%; display:flex; flex-direction:column; background:white; }
         .tabs { display:flex; background:#f1f3f4; border-bottom:1px solid #ddd; height:50px; }
         .tab-btn { flex:1; border:none; cursor:pointer; font-weight:bold; font-size:11px; text-transform:uppercase; color:#5f6368; }
         .tab-btn.active { background:white; color:black; border-bottom:4px solid var(--banana); }
-        .tab-content { display:none; flex:1; overflow-y:auto; padding:35px; box-sizing:border-box; background:white; }
+        
+        .tab-content { display:none; flex:1; overflow-y:auto; padding:35px; box-sizing:border-box; background:white; color:black; }
         .tab-content.active { display:block; }
+
+        /* ESTILO PÓSTER */
+        #html-out { width: 100%; background: #fff; }
+        .poster-header { background:#000; color:var(--banana); padding:30px; border-bottom:5px solid var(--banana); margin-bottom:20px; }
+        .poster-title { font-size:28px; font-weight:900; margin:0; }
+        
         #chat-log { height:400px; overflow-y:auto; border:1px solid #eee; padding:15px; background:#f9f9f9; border-radius:8px; margin-bottom:10px; }
         .chat-row { display:flex; gap:10px; }
     </style>
@@ -80,46 +91,49 @@ html_template = """
     <div class="main">
         <div class="pdf-side">
             <div class="toolbar">
-                <button onclick="zoom(-0.2)" style="cursor:pointer">➖</button>
+                <button onclick="zoom(-0.2)" style="cursor:pointer; border:none; background:#444; color:white; padding:5px 10px; border-radius:4px;">➖</button>
                 <span id="z-txt">110%</span>
-                <button onclick="zoom(0.2)" style="cursor:pointer">➕</button>
+                <button onclick="zoom(0.2)" style="cursor:pointer; border:none; background:#444; color:white; padding:5px 10px; border-radius:4px;">➕</button>
                 <span id="p-txt" style="font-size:12px; margin-left:10px;">Pág: 1 / -</span>
-                <button onclick="download()" style="background:var(--banana); border:none; padding:5px 10px; cursor:pointer; font-weight:bold;">📥 DESCARGAR</button>
+                <button onclick="download()" style="background:var(--banana); border:none; padding:5px 10px; border-radius:4px; font-weight:bold; cursor:pointer;">📥 DESCARGAR</button>
             </div>
-            <div id="pdf-viewport" class="viewport" onscroll="updatePage()"></div>
+            <div id="pdf-viewport" class="viewport" onscroll="updatePage()">
+                <div id="pdf-inner" class="pdf-container-inner"></div>
+            </div>
         </div>
         <div class="data-side">
             <div class="tabs">
-                <button class="tab-btn active" onclick="openTab(event, 'analisis')">Análisis GPC</button>
+                <button class="tab-btn active" onclick="openTab(event, 'analisis')">Análisis Técnico</button>
                 <button class="tab-btn" onclick="openTab(event, 'poster')">Póster UCI</button>
                 <button class="tab-btn" onclick="openTab(event, 'chat')">Chat Experto</button>
             </div>
             <div id="analisis" class="tab-content active">
                 <h1 id="title-out" style="font-weight:900; border-bottom:2px solid #eee; padding-bottom:10px; margin-bottom:20px;"></h1>
-                <div id="md-out" style="line-height:1.6;"></div>
+                <div id="md-out" style="line-height:1.6; color:#333;"></div>
             </div>
             <div id="poster" class="tab-content"><div id="html-out"></div></div>
             <div id="chat" class="tab-content">
                 <div id="chat-log"></div>
                 <div class="chat-row">
-                    <input type="text" id="c-in" style="flex:1; padding:12px; border:1px solid #ddd;" placeholder="Consulta técnica...">
-                    <button onclick="ask()" style="padding:12px; background:black; color:white; cursor:pointer;">PREGUNTAR</button>
+                    <input type="text" id="c-in" style="flex:1; padding:12px; border:1px solid #ddd; border-radius:5px;" placeholder="Duda técnica...">
+                    <button onclick="ask()" style="padding:12px; background:black; color:white; border-radius:5px; cursor:pointer;">PREGUNTAR</button>
                 </div>
             </div>
         </div>
     </div>
+
     <script>
         const API_KEY = "__API_KEY__";
         const MODEL = "__MODEL__";
         const PDF_B64 = "__PDF_B64__";
-        const GUIA = __GUIA_JSON__;
+        const G = __GUIA_JSON__;
         
         let pdfDoc = null, scale = 1.1;
 
         window.onload = () => {
-            document.getElementById('title-out').innerText = GUIA.titulo;
-            document.getElementById('md-out').innerHTML = marked.parse(GUIA.analisis);
-            document.getElementById('html-out').innerHTML = GUIA.infografia;
+            document.getElementById('title-out').innerText = G.titulo;
+            document.getElementById('md-out').innerHTML = marked.parse(G.analisis);
+            document.getElementById('html-out').innerHTML = G.infografia;
             if(PDF_B64) initPDF(PDF_B64);
         };
 
@@ -131,7 +145,7 @@ html_template = """
         }
 
         async function draw() {
-            const view = document.getElementById('pdf-viewport'); view.innerHTML = "";
+            const view = document.getElementById('pdf-inner'); view.innerHTML = "";
             document.getElementById('z-txt').innerText = Math.round(scale*100) + "%";
             for(let i=1; i<=pdfDoc.numPages; i++) {
                 const page = await pdfDoc.getPage(i);
@@ -147,8 +161,9 @@ html_template = """
 
         function updatePage() {
             const cans = document.getElementsByTagName('canvas');
+            const viewTop = document.getElementById('pdf-viewport').scrollTop;
             for(let i=0; i<cans.length; i++) {
-                if(cans[i].getBoundingClientRect().top >= 0) {
+                if(cans[i].offsetTop >= viewTop) {
                     document.getElementById('p-txt').innerText = `Pág: ${i+1} / ${pdfDoc.numPages}`;
                     break;
                 }
@@ -157,7 +172,7 @@ html_template = """
 
         function download() {
             const a = document.createElement('a'); a.href = "data:application/pdf;base64," + PDF_B64;
-            a.download = GUIA.titulo + ".pdf"; a.click();
+            a.download = G.titulo.replace(/\\s+/g, '_') + ".pdf"; a.click();
         }
 
         function openTab(e, id) {
@@ -170,12 +185,11 @@ html_template = """
         async function ask() {
             const inp = document.getElementById('c-in'), log = document.getElementById('chat-log');
             const txt = inp.value; if(!txt) return;
-            log.innerHTML += `<div><b>Médico:</b> ${txt}</div>`; inp.value = "";
+            log.innerHTML += `<div style="margin-bottom:10px;"><b>Médico:</b> ${txt}</div>`; inp.value = "";
             try {
-                // USAMOS LA VERSIÓN DETECTADA DINÁMICAMENTE
-                const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/${MODEL}:generateContent?key=${API_KEY}`, {
+                const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${API_KEY}`, {
                     method:'POST', headers:{'Content-Type':'application/json'},
-                    body: JSON.stringify({contents:[{parts:[{text: "Basado en el PDF clínico, responde de forma técnica en español: " + txt},{inline_data:{mime_type:"application/pdf", data:PDF_B64}}]}]})
+                    body: JSON.stringify({contents:[{parts:[{text: "Responde de forma técnica sobre el PDF: " + txt},{inline_data:{mime_type:"application/pdf", data:PDF_B64}}]}]})
                 });
                 const d = await r.json();
                 const res = d.candidates[0].content.parts[0].text;
@@ -188,7 +202,7 @@ html_template = """
 </html>
 """
 
-# --- 5. LÓGICA DE CONTROL STREAMLIT ---
+# --- 5. LÓGICA STREAMLIT ---
 with st.sidebar:
     st.title("🍌 NanoBanana UCI")
     modo_admin = st.checkbox("⚙️ Modo Administrador")
@@ -208,21 +222,29 @@ with st.sidebar:
             st.rerun()
 
 if modo_admin:
-    st.header("⚙️ Gestión de GPC")
+    st.header("⚙️ Carga de GPC")
     file = st.file_uploader("Subir PDF", type="pdf")
     
-    if file and st.button("🚀 PROCESAR"):
+    if file and st.button("🚀 PROCESAR GUÍA"):
         if not model_ia:
-            st.error("No hay conexión con Google. Revisa tu API Key.")
+            st.error("Error de conexión con IA.")
         else:
-            with st.spinner(f"Usando motor autodetectado: {nombre_exacto_modelo}..."):
+            with st.spinner(f"Analizando evidencias con {active_model_name}..."):
                 pdf_bytes = file.read()
+                clean_title = clean_filename(file.name)
                 
-                # Prompt Técnico Directo
-                p_md = """Analiza este PDF clínico en ESPAÑOL. ROL: Especialista UCI. 
-                Estructura: 1. Metodología. 2. Análisis Delta (Cambios críticos). 3. Bedside Guide. 4. Dosificación. 5. Perlas Clínicas. 
-                Sin introducciones."""
-                p_html = "Genera un DIV HTML de póster médico profesional. Blanco/Negro/Amarillo UCI."
+                # PROMPT TÉCNICO (Sin ruidos)
+                p_md = """ROL: Intensivista Senior. IDIOMA: ESPAÑOL. 
+                Analiza este PDF y genera un resumen técnico. 
+                Reglas: Empieza directamente con el contenido. No digas "Aquí tienes el análisis" ni "¡Atención residentes!". 
+                Estructura: 1. Metodología. 2. Análisis Delta. 3. Bedside Guide. 4. Dosificación. 5. Perlas Clínicas."""
+                
+                # PROMPT PÓSTER (V65 Original Style)
+                p_html = """ROL: Diseñador de Infografías Médicas. IDIOMA: ESPAÑOL. 
+                Genera un DIV HTML profesional para un póster UCI. 
+                Estilo: Negro, Blanco y Amarillo (#ffd600). 
+                Componentes: 1. poster-header (Título), 2. Semáforo de Actuación (Rojo/Amarillo/Verde), 3. Métricas clave. 
+                No uses inglés. Solo el código HTML."""
                 
                 try:
                     res_ia = model_ia.generate_content([{'mime_type': 'application/pdf', 'data': pdf_bytes}, p_md]).text
@@ -230,8 +252,8 @@ if modo_admin:
                     
                     with get_db() as conn:
                         conn.execute('INSERT INTO guias (titulo, fecha, pdf_blob, analisis_md, infografia_html) VALUES (?,?,?,?,?)',
-                                     (file.name, datetime.now().strftime("%Y-%m-%d"), pdf_bytes, res_ia, res_html.replace("```html", "").replace("```", "")))
-                    st.success("✅ Guía guardada.")
+                                     (clean_title, datetime.now().strftime("%Y-%m-%d"), pdf_bytes, res_ia.strip(), res_html.replace("```html", "").replace("```", "").strip()))
+                    st.success("✅ Guía guardada correctamente.")
                     st.rerun()
                 except Exception as e:
                     st.error(f"Error en el análisis: {e}")
@@ -239,15 +261,18 @@ if modo_admin:
 elif 'active_id' in st.session_state:
     with get_db() as conn:
         g = conn.execute('SELECT * FROM guias WHERE id = ?', (st.session_state['active_id'],)).fetchone()
+    
     if g:
         pdf_b64 = base64.b64encode(g['pdf_blob']).decode('utf-8')
         g_json = {"titulo": g['titulo'], "analisis": g['analisis_md'], "infografia": g['infografia_html']}
         
         render = html_template.replace("__API_KEY__", st.secrets["GEMINI_API_KEY"])
-        render = render.replace("__MODEL__", nombre_exacto_modelo)
+        js_model = active_model_name.replace("models/", "")
+        render = render.replace("__MODEL__", js_model)
         render = render.replace("__PDF_B64__", pdf_b64)
         render = render.replace("__GUIA_JSON__", json.dumps(g_json))
         
         components.html(render, height=1200, scrolling=False)
 else:
+    st.title("Estación de Trabajo NanoBanana")
     st.info("👈 Selecciona una guía técnica del panel lateral.")
