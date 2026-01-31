@@ -10,38 +10,37 @@ import google.generativeai as genai
 # --- 1. CONFIGURACIÓN ---
 st.set_page_config(page_title="NanoBanana UCI Station", layout="wide", initial_sidebar_state="collapsed")
 
-# --- 2. MOTOR IA (AUTODETECCIÓN DE MODELO) ---
+# --- 2. MOTOR IA (CONEXIÓN SEGURA) ---
 def get_ia_engine():
     try:
         if "GEMINI_API_KEY" not in st.secrets:
             st.error("⚠️ Configura GEMINI_API_KEY en Secrets.")
             st.stop()
         genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-        # Buscamos el nombre exacto que el servidor de Google acepta hoy
-        valid_models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
-        name = next((m for m in valid_models if "1.5-flash" in m), valid_models[0])
-        return genai.GenerativeModel(model_name=name), name
+        # Intentamos obtener el modelo flash de forma directa
+        return genai.GenerativeModel("gemini-1.5-flash")
     except Exception as e:
-        st.error(f"Error de conexión con la API de Google: {e}")
-        return None, None
+        st.error(f"Error de conexión: {e}")
+        return None
 
-model_ia, active_model_name = get_ia_engine()
+model_ia = get_ia_engine()
 
-# --- 3. BASE DE DATOS (ACCESO POR NOMBRE) ---
+# --- 3. BASE DE DATOS (ESTRUCTURA BÁSICA) ---
 def get_db():
     conn = sqlite3.connect('guias_medicas.db', check_same_thread=False)
-    conn.row_factory = sqlite3.Row # Esto evita el error g[5]
+    conn.row_factory = sqlite3.Row 
     return conn
 
 def init_db():
     with get_db() as conn:
+        # Solo las columnas esenciales para evitar errores de "columna no encontrada"
         conn.execute('''CREATE TABLE IF NOT EXISTS guias 
                         (id INTEGER PRIMARY KEY AUTOINCREMENT, 
-                         titulo TEXT, autor TEXT, revista TEXT, fecha_pub TEXT, 
-                         pdf_blob BLOB, analisis_md TEXT, infografia_html TEXT)''')
+                         titulo TEXT, fecha TEXT, pdf_blob BLOB, 
+                         analisis_md TEXT, infografia_html TEXT)''')
 init_db()
 
-# --- 4. PLANTILLA HTML MAESTRA V69 ---
+# --- 4. PLANTILLA HTML V70 (FOCO EN RENDIMIENTO) ---
 html_template = """
 <!DOCTYPE html>
 <html lang="es">
@@ -57,24 +56,18 @@ html_template = """
         .main { display:flex; height:100vh; width:100vw; }
         
         /* VISOR PDF */
-        .pdf-side { width:50%; height:100%; display:flex; flex-direction:column; background:#525659; border-right:2px solid #000; }
+        .pdf-side { width:50%; height:100%; display:flex; flex-direction:column; background:#525659; border-right:1px solid #ddd; }
         .toolbar { height:50px; background:var(--dark); display:flex; align-items:center; justify-content:center; gap:20px; color:white; }
         .viewport { flex:1; overflow:auto; padding:20px; display:flex; flex-direction:column; align-items:center; }
         canvas { box-shadow:0 10px 30px rgba(0,0,0,0.5); margin-bottom:20px; background:white; }
 
-        /* PANELES DE DATOS */
+        /* PANELES */
         .data-side { width:50%; height:100%; display:flex; flex-direction:column; background:white; }
         .tabs { display:flex; background:#f1f3f4; border-bottom:1px solid #ddd; height:50px; }
-        .tab-btn { flex:1; border:none; cursor:pointer; font-weight:bold; font-size:11px; text-transform:uppercase; color:#5f6368; }
+        .tab-btn { flex:1; border:none; cursor:pointer; font-weight:bold; font-size:11px; text-transform:uppercase; }
         .tab-btn.active { background:white; color:black; border-bottom:4px solid var(--banana); }
-        
-        .tab-content { display:none; flex:1; overflow-y:auto; padding:35px; box-sizing:border-box; background:white; }
+        .tab-content { display:none; flex:1; overflow-y:auto; padding:30px; box-sizing:border-box; background:white; }
         .tab-content.active { display:block; }
-
-        /* ESTILO CONTENIDO */
-        .meta-box { border-bottom:2px solid #eee; margin-bottom:20px; padding-bottom:10px; }
-        .meta-title { font-weight:900; font-size:22px; color:#000; margin:0; }
-        .meta-info { font-size:12px; color:#666; margin-top:5px; text-transform:uppercase; }
         
         #chat-log { height:400px; overflow-y:auto; border:1px solid #eee; padding:15px; background:#f9f9f9; border-radius:8px; margin-bottom:10px; }
         .chat-row { display:flex; gap:10px; }
@@ -90,44 +83,41 @@ html_template = """
                 <button class="btn btn-zoom" onclick="zoom(-0.2)">➖</button>
                 <span id="z-txt">110%</span>
                 <button class="btn btn-zoom" onclick="zoom(0.2)">➕</button>
-                <span id="p-txt" style="font-size:12px; opacity:0.8; margin-left:10px;">Pág: 1 / -</span>
+                <span id="p-txt" style="font-size:12px; margin-left:10px;">Pág: 1 / -</span>
                 <button class="btn btn-dl" onclick="download()">📥 DESCARGAR</button>
             </div>
             <div id="pdf-viewport" class="viewport" onscroll="updatePage()"></div>
         </div>
         <div class="data-side">
             <div class="tabs">
-                <button class="tab-btn active" onclick="openTab(event, 'analisis')">Análisis Técnico</button>
+                <button class="tab-btn active" onclick="openTab(event, 'analisis')">Análisis</button>
                 <button class="tab-btn" onclick="openTab(event, 'poster')">Póster UCI</button>
                 <button class="tab-btn" onclick="openTab(event, 'chat')">Chat Experto</button>
             </div>
             <div id="analisis" class="tab-content active">
-                <div class="meta-box" id="meta-out"></div>
-                <div id="md-out" style="line-height:1.6;"></div>
+                <h1 id="title-out" style="font-weight:900; border-bottom:2px solid #eee; padding-bottom:10px;"></h1>
+                <div id="md-out" style="line-height:1.6; color:#333;"></div>
             </div>
             <div id="poster" class="tab-content"><div id="html-out"></div></div>
             <div id="chat" class="tab-content">
                 <div id="chat-log"></div>
                 <div class="chat-row">
-                    <input type="text" id="c-in" style="flex:1; padding:12px; border:1px solid #ddd; border-radius:5px;" placeholder="Duda técnica...">
-                    <button onclick="ask()" style="padding:12px; background:black; color:white; border-radius:5px; cursor:pointer;">PREGUNTAR</button>
+                    <input type="text" id="c-in" style="flex:1; padding:12px; border:1px solid #ddd; border-radius:5px;" placeholder="Pregunta técnica...">
+                    <button onclick="ask()" style="padding:12px; background:black; color:white; border-radius:5px;">ENVIAR</button>
                 </div>
             </div>
         </div>
     </div>
-
     <script>
         const API_KEY = "__API_KEY__";
-        const MODEL = "__MODEL__";
         const PDF_B64 = "__PDF_B64__";
-        const G = __GUIA_JSON__;
-        
+        const GUIA = __GUIA_JSON__;
         let pdfDoc = null, scale = 1.1;
 
         window.onload = () => {
-            document.getElementById('meta-out').innerHTML = `<h1 class="meta-title">${G.titulo}</h1><div class="meta-info">${G.autor} | ${G.revista} | ${G.fecha}</div>`;
-            document.getElementById('md-out').innerHTML = marked.parse(G.analisis);
-            document.getElementById('html-out').innerHTML = G.infografia;
+            document.getElementById('title-out').innerText = GUIA.titulo;
+            document.getElementById('md-out').innerHTML = marked.parse(GUIA.analisis);
+            document.getElementById('html-out').innerHTML = GUIA.infografia;
             initPDF(PDF_B64);
         };
 
@@ -165,7 +155,7 @@ html_template = """
 
         function download() {
             const a = document.createElement('a'); a.href = "data:application/pdf;base64," + PDF_B64;
-            a.download = G.titulo.replace(/\\s+/g, '_') + ".pdf"; a.click();
+            a.download = GUIA.titulo + ".pdf"; a.click();
         }
 
         function openTab(e, id) {
@@ -178,10 +168,9 @@ html_template = """
         async function ask() {
             const inp = document.getElementById('c-in'), log = document.getElementById('chat-log');
             const txt = inp.value; if(!txt) return;
-            log.innerHTML += `<div style="margin-bottom:10px;"><b>Médico:</b> ${txt}</div>`; inp.value = "";
-            
+            log.innerHTML += `<div><b>Médico:</b> ${txt}</div>`; inp.value = "";
             try {
-                const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/${MODEL}:generateContent?key=${API_KEY}`, {
+                const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`, {
                     method:'POST', headers:{'Content-Type':'application/json'},
                     body: JSON.stringify({contents:[{parts:[{text: "Responde de forma técnica sobre el PDF: " + txt},{inline_data:{mime_type:"application/pdf", data:PDF_B64}}]}]})
                 });
@@ -196,7 +185,7 @@ html_template = """
 </html>
 """
 
-# --- 5. LÓGICA STREAMLIT ---
+# --- 5. LÓGICA DE CONTROL ---
 with st.sidebar:
     st.title("🍌 NanoBanana UCI")
     modo_admin = st.checkbox("⚙️ Modo Administrador")
@@ -216,21 +205,17 @@ with st.sidebar:
             st.rerun()
 
 if modo_admin:
-    st.header("⚙️ Gestión Técnica de GPC")
-    file = st.file_uploader("Subir Guía (PDF)", type="pdf")
+    st.header("⚙️ Carga de GPC")
+    file = st.file_uploader("Subir PDF", type="pdf")
     
-    if file and st.button("🚀 INICIAR PROCESAMIENTO"):
-        with st.spinner(f"Usando {active_model_name}..."):
+    if file and st.button("🚀 PROCESAR"):
+        with st.spinner("Analizando profundidad clínica..."):
             pdf_bytes = file.read()
+            # Prompt Técnico Directo
             p_full = """Analiza este PDF en ESPAÑOL. 
-            Extrae estrictamente: TITULO, AUTOR, REVISTA, FECHA. 
-            Luego realiza un ANÁLISIS TÉCNICO: 
-            1. METODOLOGÍA. 
-            2. ANÁLISIS DELTA (Cambios clave). 
-            3. BEDSIDE GUIDE (Protocolos). 
-            4. FARMACOLOGÍA Y DOSIS. 
-            5. PUNTOS CLAVE PARA RESIDENTES. 
-            No uses lenguaje informal ni saludos."""
+            ROL: Intensivista. 
+            Analiza: 1. Metodología. 2. Análisis Delta (Cambios). 3. Bedside Guide. 4. Dosificación. 5. Perlas Clínicas. 
+            No uses saludos ni introducciones."""
             
             p_html = "Genera un DIV HTML para un póster médico técnico. Blanco/Negro/Amarillo UCI."
             
@@ -238,19 +223,13 @@ if modo_admin:
                 res_ia = model_ia.generate_content([{'mime_type': 'application/pdf', 'data': pdf_bytes}, p_full]).text
                 res_html = model_ia.generate_content([{'mime_type': 'application/pdf', 'data': pdf_bytes}, p_html]).text
                 
-                # Extracción de metadatos
-                t = re.search(r"TITULO:\s*(.*)", res_ia).group(1) if "TITULO:" in res_ia else file.name
-                a = re.search(r"AUTOR:\s*(.*)", res_ia).group(1) if "AUTOR:" in res_ia else "Sociedad Médica"
-                r = re.search(r"REVISTA:\s*(.*)", res_ia).group(1) if "REVISTA:" in res_ia else "Publicación Oficial"
-                f = re.search(r"FECHA:\s*(.*)", res_ia).group(1) if "FECHA:" in res_ia else "2024"
-
                 with get_db() as conn:
-                    conn.execute('INSERT INTO guias (titulo, autor, revista, fecha_pub, pdf_blob, analisis_md, infografia_html) VALUES (?,?,?,?,?,?,?)',
-                                 (t, a, r, f, pdf_bytes, res_ia, res_html.replace("```html", "").replace("```", "")))
-                st.success("✅ Guía integrada.")
+                    conn.execute('INSERT INTO guias (titulo, fecha, pdf_blob, analisis_md, infografia_html) VALUES (?,?,?,?,?)',
+                                 (file.name, datetime.now().strftime("%Y-%m-%d"), pdf_bytes, res_ia, res_html.replace("```html", "").replace("```", "")))
+                st.success("✅ Guía guardada.")
                 st.rerun()
             except Exception as e:
-                st.error(f"Error en el análisis: {e}")
+                st.error(f"Error de IA: {e}")
 
 elif 'active_id' in st.session_state:
     with get_db() as conn:
@@ -258,17 +237,12 @@ elif 'active_id' in st.session_state:
     
     if g:
         pdf_b64 = base64.b64encode(g['pdf_blob']).decode('utf-8')
-        g_json = {
-            "titulo": g['titulo'], "autor": g['autor'], "revista": g['revista'], 
-            "fecha": g['fecha_pub'], "analisis": g['analisis_md'], "infografia": g['infografia_html']
-        }
+        g_json = {"titulo": g['titulo'], "analisis": g['analisis_md'], "infografia": g['infografia_html']}
         
         render = html_template.replace("__API_KEY__", st.secrets["GEMINI_API_KEY"])
-        render = render.replace("__MODEL__", active_model_name)
         render = render.replace("__PDF_B64__", pdf_b64)
         render = render.replace("__GUIA_JSON__", json.dumps(g_json))
         
         components.html(render, height=1200, scrolling=False)
 else:
-    st.title("Handover Médico NanoBanana")
     st.info("👈 Selecciona una guía técnica del panel lateral.")
