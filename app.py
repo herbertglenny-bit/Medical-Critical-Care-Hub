@@ -10,23 +10,23 @@ import google.generativeai as genai
 # --- 1. CONFIGURACIÓN ---
 st.set_page_config(page_title="NanoBanana UCI Station", layout="wide", initial_sidebar_state="collapsed")
 
-# --- 2. MOTOR IA (SISTEMA DE AUTODETECCIÓN) ---
+# --- 2. MOTOR IA (SISTEMA DE AHORRO DE CUOTA) ---
 def get_ia_engine():
     try:
         if "GEMINI_API_KEY" not in st.secrets:
             st.error("⚠️ Configura GEMINI_API_KEY en Secrets.")
             st.stop()
         genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
+        # Intentamos usar el modelo flash más estable
         valid_models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
         name = next((m for m in valid_models if "1.5-flash" in m), valid_models[0])
         return genai.GenerativeModel(model_name=name), name
     except Exception as e:
-        st.error(f"Error de conexión con Google: {e}")
         return None, None
 
 model_ia, active_model_name = get_ia_engine()
 
-# --- 3. BASE DE DATOS Y LIMPIEZA ---
+# --- 3. BASE DE DATOS ---
 def get_db():
     conn = sqlite3.connect('guias_medicas.db', check_same_thread=False)
     conn.row_factory = sqlite3.Row 
@@ -40,14 +40,13 @@ def init_db():
                          analisis_md TEXT, infografia_html TEXT)''')
 
 def clean_filename(filename):
-    # Quita .pdf, cambia - y _ por espacios y capitaliza
     name = re.sub(r'\.[Pp][Dd][Ff]$', '', filename)
     name = name.replace('-', ' ').replace('_', ' ')
     return name.title()
 
 init_db()
 
-# --- 4. PLANTILLA HTML MAESTRA V75 (SCROLL HORIZONTAL Y PÓSTER PRO) ---
+# --- 4. PLANTILLA HTML V76 (PANELES INDEPENDIENTES) ---
 html_template = """
 <!DOCTYPE html>
 <html lang="es">
@@ -62,29 +61,22 @@ html_template = """
         body, html { margin:0; padding:0; height:100vh; font-family:'Inter', sans-serif; background:#fff; overflow:hidden; }
         .main { display:flex; height:100vh; width:100vw; }
         
-        /* VISOR PDF CORREGIDO (SCROLL HORIZONTAL) */
+        /* PDF SIDE (SCROLL H/V) */
         .pdf-side { width:50%; height:100%; display:flex; flex-direction:column; background:#525659; border-right:2px solid #000; }
         .toolbar { height:50px; background:var(--dark); display:flex; align-items:center; justify-content:center; gap:20px; color:white; }
-        .viewport { flex:1; overflow:auto; padding:20px; display:flex; flex-direction:column; align-items:center; }
-        .pdf-container-inner { min-width: fit-content; display: flex; flex-direction: column; align-items: center; }
+        .viewport { flex:1; overflow:auto; padding:20px; }
+        .pdf-canvas-container { min-width: fit-content; margin: 0 auto; display: flex; flex-direction: column; align-items: center; }
         canvas { box-shadow:0 10px 30px rgba(0,0,0,0.5); margin-bottom:20px; background:white; }
 
-        /* PANELES DE DATOS */
+        /* DATA SIDE */
         .data-side { width:50%; height:100%; display:flex; flex-direction:column; background:white; }
         .tabs { display:flex; background:#f1f3f4; border-bottom:1px solid #ddd; height:50px; }
         .tab-btn { flex:1; border:none; cursor:pointer; font-weight:bold; font-size:11px; text-transform:uppercase; color:#5f6368; }
         .tab-btn.active { background:white; color:black; border-bottom:4px solid var(--banana); }
-        
-        .tab-content { display:none; flex:1; overflow-y:auto; padding:35px; box-sizing:border-box; background:white; color:black; }
+        .tab-content { display:none; flex:1; overflow-y:auto; padding:35px; box-sizing:border-box; background:white; }
         .tab-content.active { display:block; }
-
-        /* ESTILO PÓSTER */
-        #html-out { width: 100%; background: #fff; }
-        .poster-header { background:#000; color:var(--banana); padding:30px; border-bottom:5px solid var(--banana); margin-bottom:20px; }
-        .poster-title { font-size:28px; font-weight:900; margin:0; }
         
         #chat-log { height:400px; overflow-y:auto; border:1px solid #eee; padding:15px; background:#f9f9f9; border-radius:8px; margin-bottom:10px; }
-        .chat-row { display:flex; gap:10px; }
     </style>
 </head>
 <body>
@@ -98,30 +90,29 @@ html_template = """
                 <button onclick="download()" style="background:var(--banana); border:none; padding:5px 10px; border-radius:4px; font-weight:bold; cursor:pointer;">📥 DESCARGAR</button>
             </div>
             <div id="pdf-viewport" class="viewport" onscroll="updatePage()">
-                <div id="pdf-inner" class="pdf-container-inner"></div>
+                <div id="pdf-inner" class="pdf-canvas-container"></div>
             </div>
         </div>
         <div class="data-side">
             <div class="tabs">
-                <button class="tab-btn active" onclick="openTab(event, 'analisis')">Análisis Técnico</button>
+                <button class="tab-btn active" onclick="openTab(event, 'analisis')">Análisis GPC</button>
                 <button class="tab-btn" onclick="openTab(event, 'poster')">Póster UCI</button>
                 <button class="tab-btn" onclick="openTab(event, 'chat')">Chat Experto</button>
             </div>
             <div id="analisis" class="tab-content active">
-                <h1 id="title-out" style="font-weight:900; border-bottom:2px solid #eee; padding-bottom:10px; margin-bottom:20px;"></h1>
-                <div id="md-out" style="line-height:1.6; color:#333;"></div>
+                <h1 id="title-out" style="font-weight:900; border-bottom:2px solid #eee; padding-bottom:10px;"></h1>
+                <div id="md-out" style="line-height:1.6; margin-top:20px;"></div>
             </div>
             <div id="poster" class="tab-content"><div id="html-out"></div></div>
             <div id="chat" class="tab-content">
                 <div id="chat-log"></div>
-                <div class="chat-row">
-                    <input type="text" id="c-in" style="flex:1; padding:12px; border:1px solid #ddd; border-radius:5px;" placeholder="Duda técnica...">
-                    <button onclick="ask()" style="padding:12px; background:black; color:white; border-radius:5px; cursor:pointer;">PREGUNTAR</button>
+                <div style="display:flex; gap:10px;">
+                    <input type="text" id="c-in" style="flex:1; padding:12px; border:1px solid #ddd;" placeholder="Consulta técnica...">
+                    <button onclick="ask()" style="padding:12px; background:black; color:white; border:none; cursor:pointer;">ENVIAR</button>
                 </div>
             </div>
         </div>
     </div>
-
     <script>
         const API_KEY = "__API_KEY__";
         const MODEL = "__MODEL__";
@@ -161,9 +152,9 @@ html_template = """
 
         function updatePage() {
             const cans = document.getElementsByTagName('canvas');
-            const viewTop = document.getElementById('pdf-viewport').scrollTop;
+            const vTop = document.getElementById('pdf-viewport').scrollTop;
             for(let i=0; i<cans.length; i++) {
-                if(cans[i].offsetTop >= viewTop) {
+                if(cans[i].offsetTop >= vTop) {
                     document.getElementById('p-txt').innerText = `Pág: ${i+1} / ${pdfDoc.numPages}`;
                     break;
                 }
@@ -172,7 +163,7 @@ html_template = """
 
         function download() {
             const a = document.createElement('a'); a.href = "data:application/pdf;base64," + PDF_B64;
-            a.download = G.titulo.replace(/\\s+/g, '_') + ".pdf"; a.click();
+            a.download = G.titulo + ".pdf"; a.click();
         }
 
         function openTab(e, id) {
@@ -195,7 +186,7 @@ html_template = """
                 const res = d.candidates[0].content.parts[0].text;
                 log.innerHTML += `<div style="color:#2c3e50; border-left:3px solid var(--banana); padding-left:10px; margin-bottom:20px;"><b>IA:</b> ${marked.parse(res)}</div>`;
                 log.scrollTop = log.scrollHeight;
-            } catch(e) { log.innerHTML += "<div>Error de conexión.</div>"; }
+            } catch(e) { log.innerHTML += "<div>Límite de peticiones alcanzado. Intenta de nuevo en 1 minuto.</div>"; }
         }
     </script>
 </body>
@@ -222,41 +213,36 @@ with st.sidebar:
             st.rerun()
 
 if modo_admin:
-    st.header("⚙️ Carga de GPC")
+    st.header("⚙️ Gestión de GPC")
     file = st.file_uploader("Subir PDF", type="pdf")
     
     if file and st.button("🚀 PROCESAR GUÍA"):
-        if not model_ia:
-            st.error("Error de conexión con IA.")
-        else:
-            with st.spinner(f"Analizando evidencias con {active_model_name}..."):
-                pdf_bytes = file.read()
-                clean_title = clean_filename(file.name)
+        with st.spinner("Analizando evidencias (ahorrando cuota de IA)..."):
+            pdf_bytes = file.read()
+            clean_title = clean_filename(file.name)
+            
+            # --- COMBO PROMPT (2 EN 1 PARA AHORRAR PETICIONES) ---
+            p_combo = """Analiza este PDF en ESPAÑOL. 
+            Devuelve el resultado en formato JSON con dos campos:
+            1. "analisis": Un resumen técnico profundo (Metodología, Delta, Bundles, Dosificación, Perlas).
+            2. "poster": Un fragmento de DIV HTML profesional para póster UCI (Blanco, Negro, Amarillo, Semáforo).
+            No incluyas saludos ni texto fuera del JSON."""
+            
+            try:
+                response = model_ia.generate_content([{'mime_type': 'application/pdf', 'data': pdf_bytes}, p_combo])
+                raw_data = response.text.replace("```json", "").replace("```", "").strip()
+                data_json = json.loads(raw_data)
                 
-                # PROMPT TÉCNICO (Sin ruidos)
-                p_md = """ROL: Intensivista Senior. IDIOMA: ESPAÑOL. 
-                Analiza este PDF y genera un resumen técnico. 
-                Reglas: Empieza directamente con el contenido. No digas "Aquí tienes el análisis" ni "¡Atención residentes!". 
-                Estructura: 1. Metodología. 2. Análisis Delta. 3. Bedside Guide. 4. Dosificación. 5. Perlas Clínicas."""
-                
-                # PROMPT PÓSTER (V65 Original Style)
-                p_html = """ROL: Diseñador de Infografías Médicas. IDIOMA: ESPAÑOL. 
-                Genera un DIV HTML profesional para un póster UCI. 
-                Estilo: Negro, Blanco y Amarillo (#ffd600). 
-                Componentes: 1. poster-header (Título), 2. Semáforo de Actuación (Rojo/Amarillo/Verde), 3. Métricas clave. 
-                No uses inglés. Solo el código HTML."""
-                
-                try:
-                    res_ia = model_ia.generate_content([{'mime_type': 'application/pdf', 'data': pdf_bytes}, p_md]).text
-                    res_html = model_ia.generate_content([{'mime_type': 'application/pdf', 'data': pdf_bytes}, p_html]).text
-                    
-                    with get_db() as conn:
-                        conn.execute('INSERT INTO guias (titulo, fecha, pdf_blob, analisis_md, infografia_html) VALUES (?,?,?,?,?)',
-                                     (clean_title, datetime.now().strftime("%Y-%m-%d"), pdf_bytes, res_ia.strip(), res_html.replace("```html", "").replace("```", "").strip()))
-                    st.success("✅ Guía guardada correctamente.")
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"Error en el análisis: {e}")
+                with get_db() as conn:
+                    conn.execute('INSERT INTO guias (titulo, fecha, pdf_blob, analisis_md, infografia_html) VALUES (?,?,?,?,?)',
+                                 (clean_title, datetime.now().strftime("%Y-%m-%d"), pdf_bytes, data_json['analisis'], data_json['poster']))
+                st.success("✅ Guía integrada con éxito.")
+                st.rerun()
+            except Exception as e:
+                if "429" in str(e):
+                    st.error("❌ Has alcanzado el límite de peticiones de Google por hoy (20/día). Espera 24h o usa otra API Key.")
+                else:
+                    st.error(f"Error técnico: {e}")
 
 elif 'active_id' in st.session_state:
     with get_db() as conn:
@@ -274,5 +260,4 @@ elif 'active_id' in st.session_state:
         
         components.html(render, height=1200, scrolling=False)
 else:
-    st.title("Estación de Trabajo NanoBanana")
     st.info("👈 Selecciona una guía técnica del panel lateral.")
