@@ -7,19 +7,36 @@ import re
 from datetime import datetime
 import google.generativeai as genai
 
-# --- 1. CONFIGURACIÓN DE PÁGINA ---
+# --- 1. CONFIGURACIÓN ---
 st.set_page_config(page_title="NanoBanana UCI Station", layout="wide")
 
-# --- 2. MOTOR IA (Ajuste de estabilidad) ---
+# --- 2. MOTOR IA (SISTEMA ANTIFALLO) ---
 try:
     API_KEY = st.secrets["GEMINI_API_KEY"]
     genai.configure(api_key=API_KEY)
 except:
-    st.error("⚠️ Configura la GEMINI_API_KEY en los Secrets de Streamlit.")
+    st.error("⚠️ Error: Configura la GEMINI_API_KEY en los Secrets.")
     st.stop()
 
-# Usamos el nombre técnico exacto para evitar el error NotFound
-ACTIVE_MODEL = "models/gemini-1.5-flash"
+def safe_generate_content(pdf_bytes, prompt):
+    """Prueba diferentes nombres de modelo para evitar el error NotFound"""
+    model_variants = ["gemini-1.5-flash", "models/gemini-1.5-flash", "gemini-1.5-pro"]
+    last_error = None
+    
+    for model_name in model_variants:
+        try:
+            model = genai.GenerativeModel(model_name=model_name)
+            response = model.generate_content([
+                {'mime_type': 'application/pdf', 'data': pdf_bytes},
+                prompt
+            ])
+            return response.text, model_name
+        except Exception as e:
+            last_error = e
+            continue
+    
+    st.error(f"❌ Error crítico de conexión con Google: {last_error}")
+    return None, None
 
 # --- 3. BASE DE DATOS ---
 def get_db_connection():
@@ -40,8 +57,9 @@ def guardar_guia(titulo, pdf_bytes, analisis, html, mermaid):
 
 init_db()
 
-# --- 4. FUNCIONES DE LIMPIEZA ---
+# --- 4. LIMPIEZA DE DATOS ---
 def clean_analysis_text(text):
+    if not text: return ""
     text = text.replace("```markdown", "").replace("```", "")
     lines = text.split('\n')
     cleaned = []
@@ -54,14 +72,17 @@ def clean_analysis_text(text):
     return '\n'.join(cleaned).strip()
 
 def clean_html_output(text):
+    if not text: return ""
     text = text.replace("```html", "").replace("```", "")
     match = re.search(r'<div class="poster-header"', text)
     if match: text = text[match.start():]
+    else:
+        match_any_div = re.search(r'<div', text)
+        if match_any_div: text = text[match_any_div.start():]
     end = text.rfind("</div>")
     return text[:end+6].strip() if end != -1 else text.strip()
 
-# --- 5. EL TEMPLATE HTML (TU V65 ORIGINAL) ---
-# He mantenido exactamente tu estructura visual de póster y chat
+# --- 5. TEMPLATE MAESTRO V65 ---
 html_template = """
 <!DOCTYPE html>
 <html lang="es">
@@ -151,7 +172,7 @@ html_template = """
         </div>
     </div>
     <script>
-        const API_KEY = "__API_KEY__"; const MODEL = "__MODEL__"; 
+        const API_KEY = "__API_KEY__";
         const D_PDF = __PDF_DATA__; const D_MD = __ANALISIS_DATA__;
         const D_HTML = __INFO_DATA__; const D_MM = __MERMAID_DATA__;
         let pdfDoc = null, scale = 1.1, chatLog = [];
@@ -161,13 +182,7 @@ html_template = """
                 renderPDF(D_PDF);
                 document.getElementById('m-content').innerHTML = marked.parse(D_MD);
                 document.getElementById('infografia-visual-container').innerHTML = D_HTML;
-                if(D_MM) {
-                    setTimeout(() => {
-                        const el = document.getElementById('mermaid-placeholder');
-                        if(el) { el.innerHTML = `<pre class="mermaid">${D_MM}</pre>`; mermaid.run(); }
-                        document.getElementById('btn-save').style.display = 'block';
-                    }, 800);
-                }
+                document.getElementById('btn-save').style.display = 'block';
             }
             document.getElementById('pdf-container').onscroll = upPage;
         };
@@ -218,24 +233,24 @@ html_template = """
             const lid = "l"+Date.now();
             h.innerHTML += `<div id="${lid}" class="msg ai">...</div>`;
             h.scrollTop = h.scrollHeight;
-            chatLog.push({role:"user", text:t});
             
             try {
-                const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/${MODEL}:generateContent?key=${API_KEY}`, {
-                    method:'POST', body: JSON.stringify({contents:[{parts:[{text:"Responde en ESPAÑOL sobre este PDF clínico: " + t},{inline_data:{mime_type:"application/pdf", data:D_PDF}}]}]})
+                // Intentar el chat con el modelo flash estándar
+                const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`, {
+                    method:'POST', body: JSON.stringify({contents:[{parts:[{text:"Responde en ESPAÑOL basado en el PDF: " + t},{inline_data:{mime_type:"application/pdf", data:D_PDF}}]}]})
                 });
                 const d = await r.json();
                 const res = d.candidates[0].content.parts[0].text;
                 document.getElementById(lid).innerHTML = marked.parse(res);
             } catch(e) {
-                document.getElementById(lid).innerHTML = "Error de conexión con la IA.";
+                document.getElementById(lid).innerHTML = "Error al conectar con la IA.";
             }
             h.scrollTop = h.scrollHeight;
         }
 
         function saveImg() {
             html2canvas(document.getElementById('infografia-visual-container'), {scale:3}).then(c => {
-                const a = document.createElement('a'); a.download = 'UCI_Poster.png'; a.href = c.toDataURL(); a.click();
+                const a = document.createElement('a'); a.download = 'Poster_UCI.png'; a.href = c.toDataURL(); a.click();
             });
         }
     </script>
@@ -266,37 +281,39 @@ with st.sidebar:
                     st.rerun()
 
 if modo_admin:
-    st.title("Panel de Administración")
+    st.title("Admin: Carga de GPC")
     
-    # Sistema de Backup para no perder nada nunca más
     with st.expander("📥 Copia de Seguridad"):
         with get_db_connection() as conn:
             all_data = conn.execute('SELECT * FROM guias').fetchall()
             if all_data:
-                st.download_button("Descargar todas las guías (.json)", json.dumps(all_data, default=str), "backup_uci.json")
+                st.download_button("Descargar Backup (.json)", json.dumps(all_data, default=str), "backup_uci.json")
 
-    file = st.file_uploader("Cargar Guía de Práctica Clínica (PDF)", type="pdf")
+    file = st.file_uploader("Subir PDF", type="pdf")
     
-    if file and st.button("🚀 PROCESAR E INTEGRAR"):
-        with st.spinner("La IA está analizando y diseñando..."):
+    if file and st.button("🚀 PROCESAR"):
+        with st.spinner("Analizando evidencias clínicas..."):
             pdf_bytes = file.read()
-            model = genai.GenerativeModel(ACTIVE_MODEL)
             
-            # Prompts Originales Refinados
-            p1 = "# ROL: Jefe de UCI. IDIOMA: ESPAÑOL. Analiza: 1. Metodología. 2. Análisis Delta (Novedades). 3. Guía Bedside. 4. Rincón Residente. Empieza con #."
-            analisis = clean_analysis_text(model.generate_content([{'mime_type': 'application/pdf', 'data': pdf_bytes}, p1]).text)
+            # PROMPTS
+            p1 = "# ROL: Jefe UCI. Analiza Metodología, Análisis Delta, Bundles y Rincón Residente."
+            p2 = "# ROL: Diseñador UCI. Genera DIV HTML con poster-header, poster-body, traffic-container, metrics-grid. Emojis."
+            p3 = "# Mermaid TD Algoritmo clínico. Solo código."
             
-            p2 = "# ROL: Diseñador UCI. Genera SOLO el DIV HTML con clases poster-header, poster-body, traffic-container, metrics-grid. Usa emojis médicos."
-            html = clean_html_output(model.generate_content([{'mime_type': 'application/pdf', 'data': pdf_bytes}, p2]).text)
-            
-            p3 = "# Mermaid TD en ESPAÑOL. Solo el código."
-            mermaid = model.generate_content([{'mime_type': 'application/pdf', 'data': pdf_bytes}, p3]).text.replace("```mermaid", "").replace("```", "").strip()
-            
-            guardar_guia(file.name, pdf_bytes, analisis, html, mermaid)
-            st.success("✅ Guía integrada con éxito.")
-            st.rerun()
+            # EJECUCIÓN CON AUTODETECCIÓN DE MODELO
+            raw_analisis, mod_used = safe_generate_content(pdf_bytes, p1)
+            if raw_analisis:
+                analisis = clean_analysis_text(raw_analisis)
+                raw_html, _ = safe_generate_content(pdf_bytes, p2)
+                html = clean_html_output(raw_html)
+                raw_mermaid, _ = safe_generate_content(pdf_bytes, p3)
+                mermaid = raw_mermaid.replace("```mermaid", "").replace("```", "").strip() if raw_mermaid else ""
+                
+                guardar_guia(file.name, pdf_bytes, analisis, html, mermaid)
+                st.success(f"✅ Éxito usando {mod_used}. Guía guardada.")
+                st.rerun()
 
-# --- 7. RENDERIZADO DEL DASHBOARD ---
+# --- 7. RENDERIZADO ---
 if 'active_guide_id' in st.session_state:
     with get_db_connection() as conn:
         guia = conn.execute('SELECT * FROM guias WHERE id = ?', (st.session_state['active_guide_id'],)).fetchone()
@@ -304,7 +321,6 @@ if 'active_guide_id' in st.session_state:
     if guia:
         pdf_b64 = base64.b64encode(guia[3]).decode('utf-8')
         f_html = html_template.replace("__API_KEY__", API_KEY)
-        f_html = f_html.replace("__MODEL__", ACTIVE_MODEL)
         f_html = f_html.replace("__PDF_DATA__", json.dumps(pdf_b64))
         f_html = f_html.replace("__ANALISIS_DATA__", json.dumps(guia[4]))
         f_html = f_html.replace("__INFO_DATA__", json.dumps(guia[5]))
@@ -312,5 +328,4 @@ if 'active_guide_id' in st.session_state:
         
         components.html(f_html, height=1300, scrolling=False)
 else:
-    st.title("Handover Médico NanoBanana")
-    st.info("👈 Selecciona una guía del menú lateral para comenzar.")
+    st.info("👈 Selecciona una guía clínica en el lateral.")
